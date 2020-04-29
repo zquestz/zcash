@@ -49,7 +49,7 @@ use zcash_primitives::{
     primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed, ViewingKey},
     redjubjub::{self, Signature},
     sapling::{merkle_hash, spend_sig},
-    transaction::components::Amount,
+    transaction::{components::Amount},
     zip32,
 };
 use zcash_proofs::{
@@ -1289,4 +1289,18 @@ pub extern "system" fn librustzcash_zebra_crypto_sign_verify_detached(
     } else {
         LIBSODIUM_OK
     }
+}
+
+#[no_mangle]
+pub extern "C" fn librustzcash_tze_verify(
+    _p_extension_id: u32,
+    _p_mode: u32,
+    _p_payload: *const c_uchar,
+    _w_extension_id: u32,
+    _w_mode: u32,
+    _w_payload: *const c_uchar,
+    _height: i32,
+    _tx_serialized: *const c_uchar,
+) -> bool {
+    return true;
 }

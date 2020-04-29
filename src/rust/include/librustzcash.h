@@ -371,6 +371,18 @@ extern "C" {
         unsigned long long mlen,
         const unsigned char *pk
     );
+
+    bool librustzcash_tze_verify(
+        uint32_t p_extension_id,
+        uint32_t p_mode,
+        const unsigned char* p_payload,
+        uint32_t w_extension_id,
+        uint32_t w_mode,
+        const unsigned char* w_payload,
+        int32_t height,
+        const unsigned char* tx
+        // TODO: some return channel for errors?
+    );
 #ifdef __cplusplus
 }
 #endif

@@ -4,6 +4,7 @@
 #include "consensus/upgrades.h"
 #include "consensus/validation.h"
 #include "main.h"
+#include "test/test_tze.cpp"
 #include "transaction_builder.h"
 #include "utiltest.h"
 
@@ -125,7 +126,12 @@ TEST(Validation, ContextualCheckInputsPassesWithCoinbase) {
         auto consensusBranchId = NetworkUpgradeInfo[idx].nBranchId;
         CValidationState state;
         PrecomputedTransactionData txdata(tx);
-        EXPECT_TRUE(ContextualCheckInputs(tx, state, view, false, 0, false, txdata, Params(CBaseChainParams::MAIN).GetConsensus(), consensusBranchId));
+        EXPECT_TRUE(
+            ContextualCheckInputs(
+                MockTZE::getInstance(),
+                tx, state, view,
+                false, 0, false,
+                txdata, Params(CBaseChainParams::MAIN).GetConsensus(), consensusBranchId));
     }
 }
 
@@ -177,7 +183,7 @@ TEST(Validation, ContextualCheckInputsDetectsOldBranchId) {
     CValidationState state;
     PrecomputedTransactionData txdata(tx);
     EXPECT_TRUE(ContextualCheckInputs(
-        tx, state, view, true, 0, false, txdata,
+        MockTZE::getInstance(), tx, state, view, true, 0, false, txdata,
         consensusParams, overwinterBranchId));
 
     // Attempt to validate the inputs against Sapling. We should be notified
@@ -190,7 +196,7 @@ TEST(Validation, ContextualCheckInputsDetectsOldBranchId) {
             HexInt(overwinterBranchId)),
         false)).Times(1);
     EXPECT_FALSE(ContextualCheckInputs(
-        tx, mockState, view, true, 0, false, txdata,
+        MockTZE::getInstance(), tx, mockState, view, true, 0, false, txdata,
         consensusParams, saplingBranchId));
 
     // Attempt to validate the inputs against Blossom. All we should learn is
@@ -201,7 +207,7 @@ TEST(Validation, ContextualCheckInputsDetectsOldBranchId) {
         "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)",
         false)).Times(1);
     EXPECT_FALSE(ContextualCheckInputs(
-        tx, mockState, view, true, 0, false, txdata,
+        MockTZE::getInstance(), tx, mockState, view, true, 0, false, txdata,
         consensusParams, blossomBranchId));
 
     // Tear down

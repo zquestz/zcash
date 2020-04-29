@@ -133,7 +133,7 @@ std::string CTxOut::ToString() const
 
 CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::SPROUT_MIN_CURRENT_VERSION), fOverwintered(false), nVersionGroupId(0), nExpiryHeight(0), nLockTime(0), valueBalance(0) {}
 CMutableTransaction::CMutableTransaction(const CTransaction& tx) : nVersion(tx.nVersion), fOverwintered(tx.fOverwintered), nVersionGroupId(tx.nVersionGroupId), nExpiryHeight(tx.nExpiryHeight),
-                                                                   vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime),
+                                                                   vin(tx.vin), vout(tx.vout), tzein(tx.tzein), tzeout(tx.tzeout), nLockTime(tx.nLockTime),
                                                                    valueBalance(tx.valueBalance), vShieldedSpend(tx.vShieldedSpend), vShieldedOutput(tx.vShieldedOutput),
                                                                    vJoinSplit(tx.vJoinSplit), joinSplitPubKey(tx.joinSplitPubKey), joinSplitSig(tx.joinSplitSig),
                                                                    bindingSig(tx.bindingSig)
@@ -151,10 +151,14 @@ void CTransaction::UpdateHash() const
     *const_cast<uint256*>(&hash) = SerializeHash(*this);
 }
 
-CTransaction::CTransaction() : nVersion(CTransaction::SPROUT_MIN_CURRENT_VERSION), fOverwintered(false), nVersionGroupId(0), nExpiryHeight(0), vin(), vout(), nLockTime(0), valueBalance(0), vShieldedSpend(), vShieldedOutput(), vJoinSplit(), joinSplitPubKey(), joinSplitSig(), bindingSig() { }
+CTransaction::CTransaction() : nVersion(CTransaction::SPROUT_MIN_CURRENT_VERSION), fOverwintered(false), nVersionGroupId(0), nExpiryHeight(0), 
+                               vin(), vout(), tzein(), tzeout(), nLockTime(0), 
+                               valueBalance(0), vShieldedSpend(), vShieldedOutput(), 
+                               vJoinSplit(), joinSplitPubKey(), joinSplitSig(), 
+                               bindingSig() { }
 
 CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), fOverwintered(tx.fOverwintered), nVersionGroupId(tx.nVersionGroupId), nExpiryHeight(tx.nExpiryHeight),
-                                                            vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime),
+                                                            vin(tx.vin), vout(tx.vout), tzein(tx.tzein), tzeout(tx.tzeout), nLockTime(tx.nLockTime),
                                                             valueBalance(tx.valueBalance), vShieldedSpend(tx.vShieldedSpend), vShieldedOutput(tx.vShieldedOutput),
                                                             vJoinSplit(tx.vJoinSplit), joinSplitPubKey(tx.joinSplitPubKey), joinSplitSig(tx.joinSplitSig),
                                                             bindingSig(tx.bindingSig)
@@ -167,7 +171,7 @@ CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion
 CTransaction::CTransaction(
     const CMutableTransaction &tx,
     bool evilDeveloperFlag) : nVersion(tx.nVersion), fOverwintered(tx.fOverwintered), nVersionGroupId(tx.nVersionGroupId), nExpiryHeight(tx.nExpiryHeight),
-                              vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime),
+                              vin(tx.vin), vout(tx.vout), tzein(tx.tzein), tzeout(tx.tzeout), nLockTime(tx.nLockTime),
                               valueBalance(tx.valueBalance), vShieldedSpend(tx.vShieldedSpend), vShieldedOutput(tx.vShieldedOutput),
                               vJoinSplit(tx.vJoinSplit), joinSplitPubKey(tx.joinSplitPubKey), joinSplitSig(tx.joinSplitSig),
                               bindingSig(tx.bindingSig)
@@ -176,7 +180,8 @@ CTransaction::CTransaction(
 }
 
 CTransaction::CTransaction(CMutableTransaction &&tx) : nVersion(tx.nVersion), fOverwintered(tx.fOverwintered), nVersionGroupId(tx.nVersionGroupId),
-                                                       vin(std::move(tx.vin)), vout(std::move(tx.vout)), nLockTime(tx.nLockTime), nExpiryHeight(tx.nExpiryHeight),
+                                                       vin(std::move(tx.vin)), vout(std::move(tx.vout)), tzein(std::move(tx.tzein)), tzeout(std::move(tx.tzeout)),
+                                                       nLockTime(tx.nLockTime), nExpiryHeight(tx.nExpiryHeight),
                                                        valueBalance(tx.valueBalance),
                                                        vShieldedSpend(std::move(tx.vShieldedSpend)), vShieldedOutput(std::move(tx.vShieldedOutput)),
                                                        vJoinSplit(std::move(tx.vJoinSplit)),

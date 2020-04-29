@@ -27,6 +27,7 @@
 #include "net.h"
 #include "policy/policy.h"
 #include "pow.h"
+#include "tze.h"
 #include "txmempool.h"
 #include "ui_interface.h"
 #include "undo.h"
@@ -1426,7 +1427,7 @@ CAmount GetMinRelayFee(const CTransaction& tx, unsigned int nBytes, bool fAllowF
 }
 
 
-bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
+bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const TZE& tze, const CTransaction &tx, bool fLimitFree,
                         bool* pfMissingInputs, bool fRejectAbsurdFee)
 {
     AssertLockHeld(cs_main);
@@ -1642,7 +1643,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
         PrecomputedTransactionData txdata(tx);
-        if (!ContextualCheckInputs(tx, state, view, true, STANDARD_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
+        if (!ContextualCheckInputs(tze, tx, state, view, true, STANDARD_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
         {
             return error("AcceptToMemoryPool: ConnectInputs failed %s", hash.ToString());
         }
@@ -1656,7 +1657,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         // There is a similar check in CreateNewBlock() to prevent creating
         // invalid blocks, however allowing such transactions into the mempool
         // can be exploited as a DoS attack.
-        if (!ContextualCheckInputs(tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
+        if (!ContextualCheckInputs(tze, tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
         {
             return error("AcceptToMemoryPool: BUG! PLEASE REPORT THIS! ConnectInputs failed against MANDATORY but not STANDARD flags %s", hash.ToString());
         }
@@ -2235,6 +2236,7 @@ bool CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoins
 }// namespace Consensus
 
 bool ContextualCheckInputs(
+    const TZE& tze,
     const CTransaction& tx,
     CValidationState &state,
     const CCoinsViewCache &inputs, //chain view state as of a particular height (CChainStateView)
@@ -2265,11 +2267,11 @@ bool ContextualCheckInputs(
         if (fScriptChecks) {
             for (unsigned int i = 0; i < tx.vin.size(); i++) {
                 const COutPoint &prevout = tx.vin[i].prevout;
-                const CCoins* coins = inputs.AccessCoins(prevout.hash);
-                assert(coins);
+                const CCoins* pCoins = inputs.AccessCoins(prevout.hash);
+                assert(pCoins);
 
                 // Verify signature
-                CScriptCheck check(*coins, tx, i, flags, cacheStore, consensusBranchId, &txdata);
+                CScriptCheck check(*pCoins, tx, i, flags, cacheStore, consensusBranchId, &txdata);
                 if (pvChecks) {
                     pvChecks->push_back(CScriptCheck());
                     check.swap(pvChecks->back());
@@ -2282,7 +2284,7 @@ bool ContextualCheckInputs(
                     // notice their transactions failing before a second network
                     // upgrade occurs.
                     auto prevConsensusBranchId = PrevEpochBranchId(consensusBranchId, consensusParams);
-                    CScriptCheck checkPrev(*coins, tx, i, flags, cacheStore, prevConsensusBranchId, &txdata);
+                    CScriptCheck checkPrev(*pCoins, tx, i, flags, cacheStore, prevConsensusBranchId, &txdata);
                     if (checkPrev()) {
                         return state.DoS(
                             10, false, REJECT_INVALID, strprintf(
@@ -2297,7 +2299,7 @@ bool ContextualCheckInputs(
                         // arguments; if so, don't trigger DoS protection to
                         // avoid splitting the network between upgraded and
                         // non-upgraded nodes.
-                        CScriptCheck check2(*coins, tx, i,
+                        CScriptCheck check2(*pCoins, tx, i,
                                 flags & ~STANDARD_NOT_MANDATORY_VERIFY_FLAGS, cacheStore, consensusBranchId, &txdata);
                         if (check2())
                             return state.Invalid(false, REJECT_NONSTANDARD, strprintf("non-mandatory-script-verify-flag (%s)", ScriptErrorString(check.GetScriptError())));
@@ -2309,18 +2311,32 @@ bool ContextualCheckInputs(
                 }
             }
 
+            // for each TZE input, look up the associated prior TZE output, and pass both
+            // to the extension checker.
             for (unsigned int i = 0; i < tx.tzein.size(); i++) {
-                const COutPoint &prevout = tx.tzein[i].prevout;
-                const CCoins* sources = inputs.AccessCoins(prevout.hash);
-                assert(sources);
+                const COutPoint& prevout = tx.tzein[i].prevout;
+                const CCoins* pCoins = inputs.AccessCoins(prevout.hash);
+                assert(pCoins && pCoins->tzeout.size() > prevout.n);
 
-                // Find the specific precondition purportedly satisfied by this witness.
-                // About the only thing that we can check here is that the tze type and the
-                // modes match?
+                // Check that the witness has the same tze type and mode as the
+                // predicate. This might be duplicative of a check within the
+                // TZE code itself?
+                const CTzeCall& witness = tx.tzein[i].witness;
+                const CTzeCall& predicate = pCoins->tzeout[prevout.n].predicate;
+                if (witness.corresponds(predicate)) {
+                    // construct the context
+                    // FIXME: where to get the height?
+                    TzeContext ctx(0, tx);
 
-                // construct the context -- do we have to serialize the whole transaction?
-
-                // call through to the rust API's verify function
+                    // call through to the rust API's verify function
+                    if (!tze.check(witness, predicate, ctx)) {
+                        // FIXME: Need proper levels
+                        return state.DoS(10, false, REJECT_INVALID, "tze check failed");
+                    }
+                } else {
+                    // FIXME: Placeholder, what should the actual rejection be?
+                    return state.DoS(100, false, REJECT_INVALID, "tze id or mode mismatch");
+                }
             }
 
         }
@@ -2926,7 +2942,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
-            if (!ContextualCheckInputs(tx, state, view, fExpensiveChecks, flags, fCacheResults, txdata[i], chainparams.GetConsensus(), consensusBranchId, nScriptCheckThreads ? &vChecks : NULL))
+            if (!ContextualCheckInputs(chainparams.GetTzeCapability(), tx, state, view, fExpensiveChecks, flags, fCacheResults, txdata[i], chainparams.GetConsensus(), consensusBranchId, nScriptCheckThreads ? &vChecks : NULL))
                 return false;
             control.Add(vChecks);
         }
@@ -3327,7 +3343,8 @@ bool static DisconnectTip(CValidationState &state, const CChainParams& chainpara
             // ignore validation errors in resurrected transactions
             list<CTransaction> removed;
             CValidationState stateDummy;
-            if (tx.IsCoinBase() || !AcceptToMemoryPool(mempool, stateDummy, tx, false, NULL))
+            if (tx.IsCoinBase() || !AcceptToMemoryPool(mempool, stateDummy, chainparams.GetTzeCapability(),
+                                                       tx, false, NULL))
                 mempool.remove(tx, removed, true);
         }
         if (sproutAnchorBeforeDisconnect != sproutAnchorAfterDisconnect) {
@@ -6077,7 +6094,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         pfrom->setAskFor.erase(inv.hash);
         mapAlreadyAskedFor.erase(inv);
 
-        if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs))
+        if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, chainparams.GetTzeCapability(), tx, true, &fMissingInputs))
         {
             mempool.check(pcoinsTip);
             RelayTransaction(tx);
@@ -6111,7 +6128,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                     if (setMisbehaving.count(fromPeer))
                         continue;
-                    if (AcceptToMemoryPool(mempool, stateDummy, orphanTx, true, &fMissingInputs2))
+                    if (AcceptToMemoryPool(mempool, stateDummy, chainparams.GetTzeCapability(), orphanTx, true, &fMissingInputs2))
                     {
                         LogPrint("mempool", "   accepted orphan tx %s\n", orphanHash.ToString());
                         RelayTransaction(orphanTx);
