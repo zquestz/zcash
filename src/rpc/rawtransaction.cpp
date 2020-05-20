@@ -874,7 +874,6 @@ UniValue signrawtransaction(const UniValue& params, bool fHelp)
 
         BOOST_FOREACH(const CTxIn& txin, mergedTx.vin) {
             const uint256& prevHash = txin.prevout.hash;
-            CCoins coins;
             view.AccessCoins(prevHash); // this is certainly allowed to fail
         }
 

@@ -12,7 +12,7 @@ public:
         return instance;
     }
 
-    bool check(const CTzeCall& predicate, const CTzeCall& witness, const TzeContext& ctx) const {
+    bool check(const CTzeData& predicate, const CTzeData& witness, const TzeContext& ctx) const {
         return true;
     }
 

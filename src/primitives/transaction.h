@@ -368,7 +368,7 @@ class SaplingOutPoint : public BaseOutPoint
 {
 public:
     SaplingOutPoint() : BaseOutPoint() {};
-    SaplingOutPoint(uint256 hashIn, uint32_t nIn) : BaseOutPoint(hashIn, nIn) {}; 
+    SaplingOutPoint(uint256 hashIn, uint32_t nIn) : BaseOutPoint(hashIn, nIn) {};
     std::string ToString() const;
 };
 
@@ -497,17 +497,17 @@ typedef uint32_t TzeType;
 typedef uint32_t TzeMode;
 typedef std::vector<uint8_t> TzePayload;
 
-class CTzeCall
+class CTzeData
 {
 public:
     TzeType extensionId;
     TzeMode mode;
     TzePayload payload;
 
-    CTzeCall() {
+    CTzeData() {
     }
 
-    CTzeCall(TzeType extensionId, TzeMode mode, TzePayload payload) {
+    CTzeData(TzeType extensionId, TzeMode mode, TzePayload payload) {
         extensionId = extensionId;
         mode = mode;
         payload = payload;
@@ -522,19 +522,19 @@ public:
         READWRITE(payload);
     }
 
-    friend bool operator==(const CTzeCall& a, const CTzeCall& b)
+    friend bool operator==(const CTzeData& a, const CTzeData& b)
     {
         return (a.extensionId == b.extensionId &&
                 a.mode == b.mode &&
                 a.payload == b.payload);
     }
 
-    friend bool operator!=(const CTzeCall& a, const CTzeCall& b) {
+    friend bool operator!=(const CTzeData& a, const CTzeData& b) {
         return !(a == b);
     }
 
-    bool corresponds(const CTzeCall& other) const {
-        return (extensionId == other.extensionId && 
+    bool corresponds(const CTzeData& other) const {
+        return (extensionId == other.extensionId &&
                 mode == other.mode &&
                 payload != other.payload);
     }
@@ -545,13 +545,13 @@ class CTzeOut
 {
 public:
     CAmount nValue;
-    CTzeCall predicate;
+    CTzeData predicate;
 
     CTzeOut() {
         SetNull();
     }
 
-    CTzeOut(const CAmount& nValueIn, CTzeCall predicateIn) {
+    CTzeOut(const CAmount& nValueIn, CTzeData predicateIn) {
         nValue = nValueIn;
         predicate = predicateIn;
     }
@@ -593,12 +593,12 @@ class CTzeIn
 {
 public:
     COutPoint prevout;
-    CTzeCall witness;
+    CTzeData witness;
 
     CTzeIn() {
     }
 
-    CTzeIn(COutPoint prevoutIn, CTzeCall witness) {
+    CTzeIn(COutPoint prevoutIn, CTzeData witness) {
         prevout = prevoutIn;
         witness = witness;
     }
@@ -695,8 +695,8 @@ public:
     const uint32_t nVersionGroupId;
     const std::vector<CTxIn> vin;
     const std::vector<CTxOut> vout;
-    const std::vector<CTzeIn> tzein;
-    const std::vector<CTzeOut> tzeout;
+    const std::vector<CTzeIn> vtzein;
+    const std::vector<CTzeOut> vtzeout;
     const uint32_t nLockTime;
     const uint32_t nExpiryHeight;
     const CAmount valueBalance;
@@ -742,8 +742,8 @@ public:
             fOverwintered &&
             nVersionGroupId == SAPLING_VERSION_GROUP_ID &&
             nVersion == SAPLING_TX_VERSION;
-        bool isNu4V5 = 
-            fOverwintered && 
+        bool isNu4V5 =
+            fOverwintered &&
             nVersionGroupId == NU4_VERSION_GROUP_ID &&
             nVersion == NU4_TX_VERSION;
         if (fOverwintered && !(isOverwinterV3 || isSaplingV4 || isNu4V5)) {
@@ -753,8 +753,8 @@ public:
         READWRITE(*const_cast<std::vector<CTxIn>*>(&vin));
         READWRITE(*const_cast<std::vector<CTxOut>*>(&vout));
         if (isNu4V5) {
-            READWRITE(*const_cast<std::vector<CTzeIn>*>(&tzein));
-            READWRITE(*const_cast<std::vector<CTzeOut>*>(&tzeout));
+            READWRITE(*const_cast<std::vector<CTzeIn>*>(&vtzein));
+            READWRITE(*const_cast<std::vector<CTzeOut>*>(&vtzeout));
         }
         READWRITE(*const_cast<uint32_t*>(&nLockTime));
         if (isOverwinterV3 || isSaplingV4 || isNu4V5) {
@@ -853,8 +853,8 @@ struct CMutableTransaction
     uint32_t nVersionGroupId;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
-    std::vector<CTzeIn> tzein;
-    std::vector<CTzeOut> tzeout;
+    std::vector<CTzeIn> vtzein;
+    std::vector<CTzeOut> vtzeout;
     uint32_t nLockTime;
     uint32_t nExpiryHeight;
     CAmount valueBalance;
@@ -899,8 +899,8 @@ struct CMutableTransaction
             fOverwintered &&
             nVersionGroupId == SAPLING_VERSION_GROUP_ID &&
             nVersion == SAPLING_TX_VERSION;
-        bool isNu4V5 = 
-            fOverwintered && 
+        bool isNu4V5 =
+            fOverwintered &&
             nVersionGroupId == NU4_VERSION_GROUP_ID &&
             nVersion == NU4_TX_VERSION;
         if (fOverwintered && !(isOverwinterV3 || isSaplingV4 || isNu4V5)) {
@@ -910,8 +910,8 @@ struct CMutableTransaction
         READWRITE(vin);
         READWRITE(vout);
         if (isNu4V5) {
-            READWRITE(tzein);
-            READWRITE(tzeout);
+            READWRITE(vtzein);
+            READWRITE(vtzeout);
         }
         READWRITE(nLockTime);
         if (isOverwinterV3 || isSaplingV4 || isNu4V5) {

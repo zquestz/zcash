@@ -219,6 +219,7 @@ private:
                 nNonzeroBytes++;
             }
         }
+
         nBytes += nLastUsedByte;
     }
 
@@ -258,10 +259,11 @@ public:
 
     template<typename Stream>
     void Unserialize(Stream &s) {
-        unsigned int nCode = 0;
         // version
         ::Unserialize(s, VARINT(coins.nVersion));
+
         // header code
+        unsigned int nCode = 0;
         ::Unserialize(s, VARINT(nCode));
         coins.fCoinBase = nCode & 1;
         std::vector<bool> vAvail(2, false);
@@ -306,9 +308,9 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        for (unsigned int i = 0; i < coins.tzeout.size(); i++) {
-            if (!coins.tzeout[i].IsNull())
-                ::Serialize(s, CTzeOutSer(REF(coins.tzeout[i])));
+        for (unsigned int i = 0; i < coins.vtzeout.size(); i++) {
+            if (!coins.vtzeout[i].IsNull())
+                ::Serialize(s, CTzeOutSer(REF(coins.vtzeout[i])));
         }
     }
 };

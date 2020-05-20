@@ -621,6 +621,9 @@ bool AddOrphanTx(const CTransaction& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(c
     BOOST_FOREACH(const CTxIn& txin, tx.vin)
         mapOrphanTransactionsByPrev[txin.prevout.hash].insert(hash);
 
+    BOOST_FOREACH(const CTzeIn& tzein, tx.vtzein)
+        mapOrphanTransactionsByPrev[tzein.prevout.hash].insert(hash);
+
     LogPrint("mempool", "stored orphan tx %s (mapsz %u prevsz %u)\n", hash.ToString(),
              mapOrphanTransactions.size(), mapOrphanTransactionsByPrev.size());
     return true;
@@ -1212,13 +1215,13 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
     }
 
     // Transactions containing empty `vin` must have either non-empty
-    // `vJoinSplit` or non-empty `vShieldedSpend`.
-    if (tx.vin.empty() && tx.vJoinSplit.empty() && tx.vShieldedSpend.empty())
+    // `vJoinSplit` or non-empty `vShieldedSpend` or non-empty `vtzein`.
+    if (tx.vin.empty() && tx.vJoinSplit.empty() && tx.vShieldedSpend.empty() && tx.vtzein.empty())
         return state.DoS(10, error("CheckTransaction(): vin empty"),
                          REJECT_INVALID, "bad-txns-vin-empty");
     // Transactions containing empty `vout` must have either non-empty
-    // `vJoinSplit` or non-empty `vShieldedOutput`.
-    if (tx.vout.empty() && tx.vJoinSplit.empty() && tx.vShieldedOutput.empty())
+    // `vJoinSplit` or non-empty `vShieldedOutput` or non-empty `vtzeout`.
+    if (tx.vout.empty() && tx.vJoinSplit.empty() && tx.vShieldedOutput.empty() && tx.vtzeout.empty())
         return state.DoS(10, error("CheckTransaction(): vout empty"),
                          REJECT_INVALID, "bad-txns-vout-empty");
 
@@ -1240,10 +1243,23 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
             return state.DoS(100, error("CheckTransaction(): txout.nValue too high"),
                              REJECT_INVALID, "bad-txns-vout-toolarge");
         nValueOut += txout.nValue;
-        if (!MoneyRange(nValueOut))
-            return state.DoS(100, error("CheckTransaction(): txout total out of range"),
-                             REJECT_INVALID, "bad-txns-txouttotal-toolarge");
     }
+
+    // Check for negative or overflow TZE output values
+    BOOST_FOREACH(const CTzeOut& tzeout, tx.vtzeout)
+    {
+        if (tzeout.nValue < 0)
+            return state.DoS(100, error("CheckTransaction(): tzeout.nValue negative"),
+                             REJECT_INVALID, "bad-txns-vout-negative");
+        if (tzeout.nValue > MAX_MONEY)
+            return state.DoS(100, error("CheckTransaction(): tzeout.nValue too high"),
+                             REJECT_INVALID, "bad-txns-vout-toolarge");
+        nValueOut += tzeout.nValue;
+    }
+
+    if (!MoneyRange(nValueOut))
+        return state.DoS(100, error("CheckTransaction(): tzeout total out of range"),
+                         REJECT_INVALID, "bad-txns-txouttotal-toolarge");
 
     // Check for non-zero valueBalance when there are no Sapling inputs or outputs
     if (tx.vShieldedSpend.empty() && tx.vShieldedOutput.empty() && tx.valueBalance != 0) {
@@ -1328,6 +1344,8 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
                                     REJECT_INVALID, "bad-txns-txintotal-toolarge");
             }
         }
+
+        // FIXME: Also check for TZE inputs?
     }
 
     // Check for duplicate inputs
@@ -1338,6 +1356,16 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
             return state.DoS(100, error("CheckTransaction(): duplicate inputs"),
                              REJECT_INVALID, "bad-txns-inputs-duplicate");
         vInOutPoints.insert(txin.prevout);
+    }
+
+    // Check for duplicate TZE inputs
+    set<COutPoint> vTzeInOutPoints;
+    BOOST_FOREACH(const CTzeIn& tzein, tx.vtzein)
+    {
+        if (vTzeInOutPoints.count(tzein.prevout))
+            return state.DoS(100, error("CheckTransaction(): duplicate TZE inputs"),
+                             REJECT_INVALID, "bad-txns-inputs-duplicate");
+        vTzeInOutPoints.insert(tzein.prevout);
     }
 
     // Check for duplicate joinsplit nullifiers in this transaction
@@ -1382,6 +1410,11 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
                              REJECT_INVALID, "bad-cb-has-spend-description");
         // See ContextualCheckTransaction for consensus rules on coinbase output descriptions.
 
+        // A coinbase transaction cannot have TZE inputs
+        if (tx.vtzein.size() > 0)
+            return state.DoS(100, error("CheckTransaction(): coinbase has TZE inputs"),
+                             REJECT_INVALID, "bad-cb-has-tze-inputs");
+
         if (tx.vin[0].scriptSig.size() < 2 || tx.vin[0].scriptSig.size() > 100)
             return state.DoS(100, error("CheckTransaction(): coinbase script size"),
                              REJECT_INVALID, "bad-cb-length");
@@ -1390,7 +1423,12 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
     {
         BOOST_FOREACH(const CTxIn& txin, tx.vin)
             if (txin.prevout.IsNull())
-                return state.DoS(10, error("CheckTransaction(): prevout is null"),
+                return state.DoS(10, error("CheckTransaction(): transparent input prevout is null"),
+                                 REJECT_INVALID, "bad-txns-prevout-null");
+
+        BOOST_FOREACH(const CTzeIn& tzein, tx.vtzein)
+            if (tzein.prevout.IsNull())
+                return state.DoS(10, error("CheckTransaction(): TZE input prevout is null"),
                                  REJECT_INVALID, "bad-txns-prevout-null");
     }
 
@@ -1495,6 +1533,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const TZE& tz
             return false;
         }
     }
+    // FIXME: tzein handling?
     BOOST_FOREACH(const JSDescription &joinsplit, tx.vJoinSplit) {
         BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
             if (pool.nullifierExists(nf, SPROUT)) {
@@ -1520,14 +1559,23 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const TZE& tz
         view.SetBackend(viewMemPool);
 
         // do we already have it?
-        if (view.HaveCoins(hash))
+        if (view.HaveCoins(hash)) {
             return false;
+        }
 
         // do all inputs exist?
         // Note that this does not check for the presence of actual outputs (see the next check for that),
         // and only helps with filling in pfMissingInputs (to determine missing vs spent).
         BOOST_FOREACH(const CTxIn txin, tx.vin) {
             if (!view.HaveCoins(txin.prevout.hash)) {
+                if (pfMissingInputs)
+                    *pfMissingInputs = true;
+                return false;
+            }
+        }
+
+        BOOST_FOREACH(const CTzeIn tzein, tx.vtzein) {
+            if (!view.HaveCoins(tzein.prevout.hash)) {
                 if (pfMissingInputs)
                     *pfMissingInputs = true;
                 return false;
@@ -2135,6 +2183,8 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
                 undo.nVersion = coins->nVersion;
             }
         }
+
+        // TZE: spend here?
     }
 
     // spend nullifiers
@@ -2212,11 +2262,25 @@ bool CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoins
 
         }
 
+        // nValueIn for a transaction must include TZE inputs.
+        for (unsigned int i = 0; i < tx.vtzein.size(); i++)
+        {
+            const COutPoint &prevout = tx.vtzein[i].prevout;
+            const CCoins *pCoins = inputs.AccessCoins(prevout.hash);
+            assert(pCoins);
+
+            nValueIn += pCoins->vtzeout[prevout.n].nValue;
+            if (!MoneyRange(pCoins->vtzeout[prevout.n].nValue) || !MoneyRange(nValueIn))
+                return state.DoS(100, error("CheckInputs(): tzein amount out of range"),
+                                 REJECT_INVALID, "bad-txns-inputvalues-outofrange");
+        }
+
         nValueIn += tx.GetShieldedValueIn();
         if (!MoneyRange(nValueIn))
             return state.DoS(100, error("CheckInputs(): shielded input to transparent value pool out of range"),
                              REJECT_INVALID, "bad-txns-inputvalues-outofrange");
 
+        // This is the vital check to ensure that value is not claimed to be created from nowhere.
         if (nValueIn < tx.GetValueOut())
             return state.DoS(100, error("CheckInputs(): %s value in (%s) < value out (%s)",
                                         tx.GetHash().ToString(), FormatMoney(nValueIn), FormatMoney(tx.GetValueOut())),
@@ -2313,16 +2377,16 @@ bool ContextualCheckInputs(
 
             // for each TZE input, look up the associated prior TZE output, and pass both
             // to the extension checker.
-            for (unsigned int i = 0; i < tx.tzein.size(); i++) {
-                const COutPoint& prevout = tx.tzein[i].prevout;
+            for (unsigned int i = 0; i < tx.vtzein.size(); i++) {
+                const COutPoint& prevout = tx.vtzein[i].prevout;
                 const CCoins* pCoins = inputs.AccessCoins(prevout.hash);
-                assert(pCoins && pCoins->tzeout.size() > prevout.n);
+                assert(pCoins && pCoins->vtzeout.size() > prevout.n);
 
                 // Check that the witness has the same tze type and mode as the
                 // predicate. This might be duplicative of a check within the
                 // TZE code itself?
-                const CTzeCall& witness = tx.tzein[i].witness;
-                const CTzeCall& predicate = pCoins->tzeout[prevout.n].predicate;
+                const CTzeData& witness = tx.vtzein[i].witness;
+                const CTzeData& predicate = pCoins->vtzeout[prevout.n].predicate;
                 if (witness.corresponds(predicate)) {
                     // construct the context
                     // FIXME: where to get the height?
@@ -2338,7 +2402,6 @@ bool ContextualCheckInputs(
                     return state.DoS(100, false, REJECT_INVALID, "tze id or mode mismatch");
                 }
             }
-
         }
     }
 

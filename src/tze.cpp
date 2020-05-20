@@ -16,18 +16,21 @@ public:
         return instance;
     }
 
-    bool check(const CTzeCall& predicate, const CTzeCall& witness, const TzeContext& ctx) const {
-        std::vector<uint8_t> txser;
+    virtual bool check(const CTzeData& predicate, const CTzeData& witness, const TzeContext& ctx) const {
+        CDataStream ss(SER_DISK, CLIENT_VERSION);
+        ss << ctx.tx;
+
         // TODO: serialize ctx.tx into txser
         return librustzcash_tze_verify(
-                predicate.extensionId,
-                predicate.mode,
-                predicate.payload.data(),
-                witness.extensionId,
-                witness.mode,
-                witness.payload.data(),
-                ctx.height,
-                txser.data());
+            predicate.extensionId,
+            predicate.mode,
+            predicate.payload.data(),
+            witness.extensionId,
+            witness.mode,
+            witness.payload.data(),
+            ctx.height,
+            (unsigned char*)&ss[0]
+        );
     }
 
     // disable copy-constructor and assignment

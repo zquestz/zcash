@@ -20,12 +20,18 @@
 #include "zcash/History.hpp"
 #include "zcash/IncrementalMerkleTree.hpp"
 
+enum Spentness {
+    UNSPENT,
+    SPENT
+};
+
 /**
  * Pruned version of CTransaction: only retains metadata and unspent transaction outputs
  */
 class CCoins
 {
 public:
+
     //! whether transaction is a coinbase
     bool fCoinBase;
 
@@ -33,7 +39,8 @@ public:
     std::vector<CTxOut> vout;
 
     //! unconsumed transparent extension outputs
-    std::vector<CTzeOut> tzeout;
+    typedef std::pair<CTzeOut, Spentness> CTzeOutEntry;
+    std::vector<CTzeOutEntry> vtzeout;
 
     //! at which height this transaction was included in the active block chain
     int nHeight;
@@ -45,12 +52,12 @@ public:
     void FromTx(const CTransaction &tx, int nHeightIn) {
         fCoinBase = tx.IsCoinBase();
         vout = tx.vout;
-        tzeout = tx.tzeout;
+        for (uint32_t i = 0; i < tx.tzeout.size(); i++ ) {
+            vtzeout.push_back(std::make_pair(tx.tzeout[i], UNSPENT));
+        }
         nHeight = nHeightIn;
         nVersion = tx.nVersion;
         ClearUnspendable();
-        // We don't have a spendability analog for TZE outputs, since we can't
-        // inspect them without calling in to TZE code.
     }
 
     //! construct a CCoins from a CTransaction, at a given height
@@ -61,20 +68,31 @@ public:
     void Clear() {
         fCoinBase = false;
         std::vector<CTxOut>().swap(vout);
-        std::vector<CTzeOut>().swap(tzeout);
+        std::vector<CTzeOutEntry>().swap(vtzeout);
         nHeight = 0;
         nVersion = 0;
     }
 
     //! empty constructor
-    CCoins() : fCoinBase(false), vout(0), tzeout(0), nHeight(0), nVersion(0) { }
+    CCoins() : fCoinBase(false), vout(0), vtzeout(), nHeight(0), nVersion(0) { }
 
-    //!remove spent outputs at the end of vout
+    /**
+     * Remove spent outputs at the end of vout & tzeout.
+     *
+     * This is principally useful in relation to the serialized form; it should
+     * likely be removed from the interface in favor of the serialization code
+     * handling the appropriate compactions. --kjn
+     */
     void Cleanup() {
         while (vout.size() > 0 && vout.back().IsNull())
             vout.pop_back();
         if (vout.empty())
             std::vector<CTxOut>().swap(vout);
+
+        while (vtzeout.size() > 0 && vtzeout.back().second == SPENT)
+            vtzeout.pop_back();
+        if (vtzeout.empty())
+            std::vector<CTzeOutEntry>().swap(vtzeout);
     }
 
     void ClearUnspendable() {
@@ -83,11 +101,15 @@ public:
                 txout.SetNull();
         }
         Cleanup();
+
+        // TZE: no analog is possible without a check that calls
+        // through to the extension itself?
     }
 
     void swap(CCoins &to) {
         std::swap(to.fCoinBase, fCoinBase);
         to.vout.swap(vout);
+        to.vtzeout.swap(vtzeout);
         std::swap(to.nHeight, nHeight);
         std::swap(to.nVersion, nVersion);
     }
@@ -97,10 +119,12 @@ public:
          // Empty CCoins objects are always equal.
          if (a.IsPruned() && b.IsPruned())
              return true;
+
          return a.fCoinBase == b.fCoinBase &&
                 a.nHeight == b.nHeight &&
                 a.nVersion == b.nVersion &&
                 a.vout == b.vout;
+                a.vtzeout == b.vtzeout;
     }
     friend bool operator!=(const CCoins &a, const CCoins &b) {
         return !(a == b);
@@ -110,12 +134,19 @@ public:
         return fCoinBase;
     }
 
-    //! mark a vout spent
+    //! mark a txout spent
     bool Spend(uint32_t nPos);
+
+    //! mark a tzeout spent
+    bool SpendTzeOut(uint32_t nPos);
 
     //! check whether a particular output is still available
     bool IsAvailable(unsigned int nPos) const {
         return (nPos < vout.size() && !vout[nPos].IsNull());
+    }
+
+    bool IsTzeAvailable(unsigned int nPos) const {
+        return nPos < vtzeout.size() && vtzeout[nPos].second == UNSPENT;
     }
 
     //! check whether the entire CCoins is spent
@@ -124,6 +155,11 @@ public:
         BOOST_FOREACH(const CTxOut &out, vout)
             if (!out.IsNull())
                 return false;
+
+        BOOST_FOREACH(const CTzeOutEntry& out, vtzeout)
+            if (out.second == UNSPENT)
+                return false;
+
         return true;
     }
 
@@ -132,6 +168,7 @@ public:
         BOOST_FOREACH(const CTxOut &out, vout) {
             ret += RecursiveDynamicUsage(out.scriptPubKey);
         }
+        // TZE: do we need the same here?
         return ret;
     }
 };
@@ -465,6 +502,8 @@ public:
     double GetPriority(const CTransaction &tx, int nHeight) const;
 
     const CTxOut &GetOutputFor(const CTxIn& input) const;
+
+    const CTzeOut &GetTzeOutFor(const CTzeIn& input) const;
 
     friend class CCoinsModifier;
 
