@@ -181,6 +181,20 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry)
     }
     entry.pushKV("vin", vin);
 
+    UniValue vtzein(UniValue::VARR);
+    BOOST_FOREACH(const CTzeIn& tzein, tx.vtzein) {
+        UniValue in(UniValue::VOBJ);
+        in.pushKV("txid", tzein.prevout.hash.GetHex());
+        in.pushKV("vout", (int64_t)tzein.prevout.n);
+
+        UniValue wit(UniValue::VOBJ);
+        TzeDataToUniv(tzein.witness, wit);
+        in.pushKV("witness", wit);
+
+        vtzein.push_back(in);
+    }
+    entry.pushKV("vtzein", vtzein);
+
     UniValue vout(UniValue::VARR);
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
         const CTxOut& txout = tx.vout[i];
@@ -197,6 +211,23 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry)
         vout.push_back(out);
     }
     entry.pushKV("vout", vout);
+
+    UniValue vtzeout(UniValue::VARR);
+    for (unsigned int i = 0; i < tx.vtzeout.size(); i++) {
+        const CTzeOut& tzeout = tx.vtzeout[i];
+
+        UniValue out(UniValue::VOBJ);
+
+        UniValue outValue(UniValue::VNUM, FormatMoney(tzeout.nValue));
+        out.pushKV("value", outValue);
+        out.pushKV("n", (int64_t)i);
+
+        UniValue o(UniValue::VOBJ);
+        TzeDataToUniv(tzeout.predicate, o);
+        out.pushKV("predicate", o);
+        vtzeout.push_back(out);
+    }
+    entry.pushKV("vtzeout", vtzeout);
 
     if (!hashBlock.IsNull())
         entry.pushKV("blockhash", hashBlock.GetHex());
