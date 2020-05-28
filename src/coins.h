@@ -39,8 +39,8 @@ public:
     std::vector<CTxOut> vout;
 
     //! unconsumed transparent extension outputs
-    typedef std::pair<CTzeOut, Spentness> CTzeOutEntry;
-    std::vector<CTzeOutEntry> vtzeout;
+    typedef std::pair<CTzeOut, Spentness> TzeOutCoin;
+    std::vector<TzeOutCoin> vtzeout;
 
     //! at which height this transaction was included in the active block chain
     int nHeight;
@@ -52,8 +52,8 @@ public:
     void FromTx(const CTransaction &tx, int nHeightIn) {
         fCoinBase = tx.IsCoinBase();
         vout = tx.vout;
-        for (uint32_t i = 0; i < tx.tzeout.size(); i++ ) {
-            vtzeout.push_back(std::make_pair(tx.tzeout[i], UNSPENT));
+        for (uint32_t i = 0; i < tx.vtzeout.size(); i++ ) {
+            vtzeout.push_back(std::make_pair(tx.vtzeout[i], UNSPENT));
         }
         nHeight = nHeightIn;
         nVersion = tx.nVersion;
@@ -68,7 +68,7 @@ public:
     void Clear() {
         fCoinBase = false;
         std::vector<CTxOut>().swap(vout);
-        std::vector<CTzeOutEntry>().swap(vtzeout);
+        std::vector<TzeOutCoin>().swap(vtzeout);
         nHeight = 0;
         nVersion = 0;
     }
@@ -77,7 +77,7 @@ public:
     CCoins() : fCoinBase(false), vout(0), vtzeout(), nHeight(0), nVersion(0) { }
 
     /**
-     * Remove spent outputs at the end of vout & tzeout.
+     * Remove spent outputs at the end of vout & vtzeout.
      *
      * This is principally useful in relation to the serialized form; it should
      * likely be removed from the interface in favor of the serialization code
@@ -92,7 +92,7 @@ public:
         while (vtzeout.size() > 0 && vtzeout.back().second == SPENT)
             vtzeout.pop_back();
         if (vtzeout.empty())
-            std::vector<CTzeOutEntry>().swap(vtzeout);
+            std::vector<TzeOutCoin>().swap(vtzeout);
     }
 
     void ClearUnspendable() {
@@ -156,7 +156,7 @@ public:
             if (!out.IsNull())
                 return false;
 
-        BOOST_FOREACH(const CTzeOutEntry& out, vtzeout)
+        BOOST_FOREACH(const TzeOutCoin& out, vtzeout)
             if (out.second == UNSPENT)
                 return false;
 

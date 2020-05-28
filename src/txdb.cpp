@@ -51,7 +51,7 @@ static const char DB_BLOCKHASHINDEX = 'h';
 CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / dbName, nCacheSize, fMemory, fWipe) {
 }
 
-CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe)
+CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe) 
 {
 }
 
@@ -114,7 +114,7 @@ uint256 CCoinsViewDB::GetBestBlock() const {
 
 uint256 CCoinsViewDB::GetBestAnchor(ShieldedType type) const {
     uint256 hashBestAnchor;
-
+    
     switch (type) {
         case SPROUT:
             if (!db.Read(DB_BEST_SPROUT_ANCHOR, hashBestAnchor))
@@ -241,10 +241,11 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins,
     size_t changed = 0;
     for (CCoinsMap::iterator it = mapCoins.begin(); it != mapCoins.end();) {
         if (it->second.flags & CCoinsCacheEntry::DIRTY) {
-            if (it->second.coins.IsPruned())
+            if (it->second.coins.IsPruned()) {
                 batch.Erase(make_pair(DB_COINS, it->first));
-            else
+            } else {
                 batch.Write(make_pair(DB_COINS, it->first), CCoinsSer(it->second.coins));
+            }
             changed++;
         }
         count++;
@@ -323,7 +324,7 @@ bool CCoinsViewDB::GetStats(CCoinsStats &stats) const {
                         }
                     }
                     for (unsigned int i=0; i<cs.coins.vtzeout.size(); i++) {
-                        const std::pair<CTzeOut, Spentness>& out = cs.coins.vtzeout[i];
+                        const CCoins::TzeOutCoin& out = cs.coins.vtzeout[i];
                         if (out.second == UNSPENT) {
                             stats.nTransactionOutputs++;
                             ss << VARINT(i+1);
@@ -336,8 +337,8 @@ bool CCoinsViewDB::GetStats(CCoinsStats &stats) const {
                 } else {
                     return error("CCoinsViewDB::GetStats() : unable to read value");
                 }
-            }
-        }
+            }         
+        } 
         pcursor->Next();
     }
     {

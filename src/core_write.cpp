@@ -150,6 +150,13 @@ void ScriptPubKeyToUniv(const CScript& scriptPubKey,
     out.pushKV("addresses", a);
 }
 
+void TzeDataToUniv(const CTzeData& d, UniValue& out)
+{
+    out.pushKV("extensionId", (uint64_t) d.extensionId);
+    out.pushKV("mode", (uint64_t) d.mode);
+    out.pushKV("payload", HexStr(d.payload));
+}
+
 void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry)
 {
     entry.pushKV("txid", tx.GetHash().GetHex());

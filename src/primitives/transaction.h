@@ -417,6 +417,10 @@ public:
         return !(a == b);
     }
 
+    const COutPoint& GetOutPoint() const {
+        return prevout;
+    }
+
     std::string ToString() const;
 };
 
@@ -547,13 +551,9 @@ public:
     CAmount nValue;
     CTzeData predicate;
 
-    CTzeOut() {
-        SetNull();
-    }
+    CTzeOut() {}
 
-    CTzeOut(const CAmount& nValueIn, CTzeData predicateIn) {
-        nValue = nValueIn;
-        predicate = predicateIn;
+    CTzeOut(const CAmount& nValueIn, CTzeData predicateIn): nValue(nValueIn), predicate(predicateIn) {
     }
 
     ADD_SERIALIZE_METHODS;
@@ -564,21 +564,11 @@ public:
         READWRITE(predicate);
     }
 
-    void SetNull()
-    {
-        nValue = -1;
-    }
-
-    bool IsNull() const
-    {
-        return (nValue == -1);
-    }
-
     uint256 GetHash() const;
 
     friend bool operator==(const CTzeOut& a, const CTzeOut& b)
     {
-        return (a.IsNull() && b.IsNull()) || (a.nValue == b.nValue && a.predicate == b.predicate);
+        return a.nValue == b.nValue && a.predicate == b.predicate;
     }
 
     friend bool operator!=(const CTzeOut& a, const CTzeOut& b)
