@@ -12,7 +12,7 @@ public:
         return instance;
     }
 
-    bool check(const CTzeData& predicate, const CTzeData& witness, const TzeContext& ctx) const {
+    bool check(const uint32_t consensusBranchId, const CTzeData& predicate, const CTzeData& witness, const TzeContext& ctx) const {
         return true;
     }
 

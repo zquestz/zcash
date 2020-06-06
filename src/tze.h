@@ -29,7 +29,7 @@ public:
 class TZE
 {
 public:
-    virtual bool check(const CTzeData& predicate, const CTzeData& witness, const TzeContext& ctx) const = 0;
+    virtual bool check(const uint32_t consensusBranchId, const CTzeData& predicate, const CTzeData& witness, const TzeContext& ctx) const = 0;
 };
 
 #endif // ZCASH_TZE_H

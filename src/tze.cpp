@@ -16,20 +16,23 @@ public:
         return instance;
     }
 
-    virtual bool check(const CTzeData& predicate, const CTzeData& witness, const TzeContext& ctx) const {
+    virtual bool check(const uint32_t consensusBranchId, const CTzeData& predicate, const CTzeData& witness, const TzeContext& ctx) const {
         CDataStream ss(SER_DISK, CLIENT_VERSION);
         ss << ctx.tx;
 
-        // TODO: serialize ctx.tx into txser
         return librustzcash_tze_verify(
+            consensusBranchId,
+            ctx.height,
             predicate.extensionId,
             predicate.mode,
             predicate.payload.data(),
+            predicate.payload.size(),
             witness.extensionId,
             witness.mode,
             witness.payload.data(),
-            ctx.height,
-            (unsigned char*)&ss[0]
+            witness.payload.size(),
+            (unsigned char*)&ss[0],
+            ss.size()
         );
     }
 

@@ -40,13 +40,9 @@ static_assert(SAPLING_TX_VERSION >= SAPLING_MIN_TX_VERSION,
 static_assert(SAPLING_TX_VERSION <= SAPLING_MAX_TX_VERSION,
     "Sapling tx version must not be higher than maximum");
 
-// Nu4 transaction version
-static const int32_t NU4_TX_VERSION = 5;
-static_assert(NU4_TX_VERSION >= NU4_MIN_TX_VERSION,
-    "Nu4 tx version must not be lower than minimum");
-static_assert(NU4_TX_VERSION <= NU4_MAX_TX_VERSION,
-    "Nu4 tx version must not be higher than maximum");
-
+// Future transaction version. This value must only be used
+// in integration-testing contexts.
+static const int32_t FUTURE_TX_VERSION = 0x0000FFFF;
 
 // These constants are defined in the protocol § 7.1:
 // https://zips.z.cash/protocol/protocol.pdf#txnencoding
@@ -511,18 +507,17 @@ public:
     CTzeData() {
     }
 
-    CTzeData(TzeType extensionId, TzeMode mode, TzePayload payload) {
-        extensionId = extensionId;
-        mode = mode;
-        payload = payload;
+    CTzeData(const CTzeData& d): extensionId(d.extensionId), mode(d.mode), payload(d.payload) {}
+
+    CTzeData(TzeType extensionId, TzeMode mode, TzePayload payload): extensionId(extensionId), mode(mode), payload(payload) {
     }
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(extensionId);
-        READWRITE(mode);
+        READWRITE(COMPACTSIZE((uint64_t) extensionId));
+        READWRITE(COMPACTSIZE((uint64_t) mode));
         READWRITE(payload);
     }
 
@@ -552,6 +547,7 @@ public:
     CTzeData predicate;
 
     CTzeOut() {}
+    CTzeOut(const CTzeOut& out): nValue(out.nValue), predicate(out.predicate) {}
 
     CTzeOut(const CAmount& nValueIn, CTzeData predicateIn): nValue(nValueIn), predicate(predicateIn) {
     }
@@ -588,9 +584,10 @@ public:
     CTzeIn() {
     }
 
-    CTzeIn(COutPoint prevoutIn, CTzeData witness) {
-        prevout = prevoutIn;
-        witness = witness;
+    CTzeIn(const CTzeIn& in): prevout(in.prevout), witness(in.witness) {
+    }
+
+    CTzeIn(COutPoint prevoutIn, CTzeData witnessIn): prevout(prevoutIn), witness(witnessIn) {
     }
 
     ADD_SERIALIZE_METHODS;
@@ -616,17 +613,17 @@ public:
 };
 
 
-// Overwinter version group id
+// Overwinter transaction version group id
 static constexpr uint32_t OVERWINTER_VERSION_GROUP_ID = 0x03C48270;
 static_assert(OVERWINTER_VERSION_GROUP_ID != 0, "version group id must be non-zero as specified in ZIP 202");
 
-// Sapling version group id
+// Sapling transaction version group id
 static constexpr uint32_t SAPLING_VERSION_GROUP_ID = 0x892F2085;
 static_assert(SAPLING_VERSION_GROUP_ID != 0, "version group id must be non-zero as specified in ZIP 202");
 
 // Nu4 version group id
-static constexpr uint32_t NU4_VERSION_GROUP_ID = 0x83252789;
-static_assert(NU4_VERSION_GROUP_ID != 0, "version group id must be non-zero as specified in ZIP 202");
+static constexpr uint32_t FUTURE_VERSION_GROUP_ID = 0xFFFFFFFF;
+static_assert(FUTURE_VERSION_GROUP_ID != 0, "version group id must be non-zero as specified in ZIP 202");
 
 struct CMutableTransaction;
 
@@ -732,25 +729,25 @@ public:
             fOverwintered &&
             nVersionGroupId == SAPLING_VERSION_GROUP_ID &&
             nVersion == SAPLING_TX_VERSION;
-        bool isNu4V5 =
+        bool hasTze =
             fOverwintered &&
-            nVersionGroupId == NU4_VERSION_GROUP_ID &&
-            nVersion == NU4_TX_VERSION;
-        if (fOverwintered && !(isOverwinterV3 || isSaplingV4 || isNu4V5)) {
+            nVersionGroupId == FUTURE_VERSION_GROUP_ID &&
+            nVersion == FUTURE_TX_VERSION;
+        if (fOverwintered && !(isOverwinterV3 || isSaplingV4 || hasTze)) {
             throw std::ios_base::failure("Unknown transaction format");
         }
 
         READWRITE(*const_cast<std::vector<CTxIn>*>(&vin));
         READWRITE(*const_cast<std::vector<CTxOut>*>(&vout));
-        if (isNu4V5) {
+        if (hasTze) {
             READWRITE(*const_cast<std::vector<CTzeIn>*>(&vtzein));
             READWRITE(*const_cast<std::vector<CTzeOut>*>(&vtzeout));
         }
         READWRITE(*const_cast<uint32_t*>(&nLockTime));
-        if (isOverwinterV3 || isSaplingV4 || isNu4V5) {
+        if (isOverwinterV3 || isSaplingV4 || hasTze) {
             READWRITE(*const_cast<uint32_t*>(&nExpiryHeight));
         }
-        if (isSaplingV4 || isNu4V5) {
+        if (isSaplingV4 || hasTze) {
             READWRITE(*const_cast<CAmount*>(&valueBalance));
             READWRITE(*const_cast<std::vector<SpendDescription>*>(&vShieldedSpend));
             READWRITE(*const_cast<std::vector<OutputDescription>*>(&vShieldedOutput));
@@ -764,7 +761,7 @@ public:
                 READWRITE(*const_cast<Ed25519Signature*>(&joinSplitSig));
             }
         }
-        if ((isSaplingV4 || isNu4V5) && !(vShieldedSpend.empty() && vShieldedOutput.empty())) {
+        if ((isSaplingV4 || hasTze) && !(vShieldedSpend.empty() && vShieldedOutput.empty())) {
             READWRITE(*const_cast<binding_sig_t*>(&bindingSig));
         }
         if (ser_action.ForRead())
@@ -889,25 +886,25 @@ struct CMutableTransaction
             fOverwintered &&
             nVersionGroupId == SAPLING_VERSION_GROUP_ID &&
             nVersion == SAPLING_TX_VERSION;
-        bool isNu4V5 =
+        bool hasTze =
             fOverwintered &&
-            nVersionGroupId == NU4_VERSION_GROUP_ID &&
-            nVersion == NU4_TX_VERSION;
-        if (fOverwintered && !(isOverwinterV3 || isSaplingV4 || isNu4V5)) {
+            nVersionGroupId == FUTURE_VERSION_GROUP_ID &&
+            nVersion == FUTURE_TX_VERSION;
+        if (fOverwintered && !(isOverwinterV3 || isSaplingV4 || hasTze)) {
             throw std::ios_base::failure("Unknown transaction format");
         }
 
         READWRITE(vin);
         READWRITE(vout);
-        if (isNu4V5) {
+        if (hasTze) {
             READWRITE(vtzein);
             READWRITE(vtzeout);
         }
         READWRITE(nLockTime);
-        if (isOverwinterV3 || isSaplingV4 || isNu4V5) {
+        if (isOverwinterV3 || isSaplingV4 || hasTze) {
             READWRITE(nExpiryHeight);
         }
-        if (isSaplingV4 || isNu4V5) {
+        if (isSaplingV4 || hasTze) {
             READWRITE(valueBalance);
             READWRITE(vShieldedSpend);
             READWRITE(vShieldedOutput);
@@ -920,7 +917,7 @@ struct CMutableTransaction
                 READWRITE(joinSplitSig);
             }
         }
-        if ((isSaplingV4 || isNu4V5) && !(vShieldedSpend.empty() && vShieldedOutput.empty())) {
+        if ((isSaplingV4 || hasTze) && !(vShieldedSpend.empty() && vShieldedOutput.empty())) {
             READWRITE(bindingSig);
         }
     }

@@ -1353,8 +1353,6 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
                                     REJECT_INVALID, "bad-txns-txintotal-toolarge");
             }
         }
-
-        // FIXME: Also check for TZE inputs?
     }
 
     // Check for duplicate inputs
@@ -2411,7 +2409,7 @@ bool ContextualCheckInputs(
                     TzeContext ctx(0, tx);
 
                     // call through to the rust API's verify function
-                    if (!tze.check(witness, predicate, ctx)) {
+                    if (!tze.check(consensusBranchId, predicate, witness, ctx)) {
                         // FIXME: Need proper levels
                         return state.DoS(10, false, REJECT_INVALID, "tze check failed");
                     }
@@ -7056,7 +7054,10 @@ CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Para
     bool isOverwintered = consensusParams.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_OVERWINTER);
     if (isOverwintered) {
         mtx.fOverwintered = true;
-        if (consensusParams.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_SAPLING)) {
+        if (consensusParams.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_FUTURE)) {
+            mtx.nVersionGroupId = FUTURE_VERSION_GROUP_ID;
+            mtx.nVersion = FUTURE_VERSION_GROUP_ID;
+        } else if (consensusParams.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_SAPLING)) {
             mtx.nVersionGroupId = SAPLING_VERSION_GROUP_ID;
             mtx.nVersion = SAPLING_TX_VERSION;
         } else {
