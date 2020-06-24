@@ -339,7 +339,8 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& ma
 bool ContextualCheckInputs(const TZE& tze, const CTransaction& tx, CValidationState &state, const CCoinsViewCache &view,
                            bool fScriptChecks,
                            unsigned int flags, bool cacheStore, PrecomputedTransactionData& txdata,
-                           const Consensus::Params& consensusParams, uint32_t consensusBranchId,
+                           const Consensus::Params& consensusParams,
+                           uint32_t consensusBranchId, int nHeight,
                            std::vector<CScriptCheck> *pvChecks = NULL);
 
 /** Check a transaction contextually against a set of consensus rules */

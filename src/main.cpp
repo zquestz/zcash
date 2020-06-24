@@ -1700,7 +1700,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const TZE& tz
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
         PrecomputedTransactionData txdata(tx);
-        if (!ContextualCheckInputs(tze, tx, state, view, true, STANDARD_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
+        if (!ContextualCheckInputs(tze, tx, state, view, true, STANDARD_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId, nextBlockHeight))
         {
             return error("AcceptToMemoryPool: ConnectInputs failed %s", hash.ToString());
         }
@@ -1714,7 +1714,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const TZE& tz
         // There is a similar check in CreateNewBlock() to prevent creating
         // invalid blocks, however allowing such transactions into the mempool
         // can be exploited as a DoS attack.
-        if (!ContextualCheckInputs(tze, tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
+        if (!ContextualCheckInputs(tze, tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId, nextBlockHeight))
         {
             return error("AcceptToMemoryPool: BUG! PLEASE REPORT THIS! ConnectInputs failed against MANDATORY but not STANDARD flags %s", hash.ToString());
         }
@@ -2326,6 +2326,7 @@ bool ContextualCheckInputs(
     PrecomputedTransactionData& txdata,
     const Consensus::Params& consensusParams,
     uint32_t consensusBranchId,
+    int nHeight,
     std::vector<CScriptCheck> *pvChecks)
 {
     if (!tx.IsCoinBase())
@@ -2391,31 +2392,32 @@ bool ContextualCheckInputs(
                 }
             }
 
-            // for each TZE input, look up the associated prior TZE output, and pass both
-            // to the extension checker.
-            for (unsigned int i = 0; i < tx.vtzein.size(); i++) {
-                const COutPoint& prevout = tx.vtzein[i].prevout;
-                const CCoins* pCoins = inputs.AccessCoins(prevout.hash);
-                assert(pCoins && pCoins->vtzeout.size() > prevout.n);
+            if (consensusParams.FeatureActive(nHeight, Consensus::ZIP222_TZE)) {
+                // for each TZE input, look up the associated prior TZE output, and pass both
+                // to the extension checker.
+                for (unsigned int i = 0; i < tx.vtzein.size(); i++) {
+                    const COutPoint& prevout = tx.vtzein[i].prevout;
+                    const CCoins* pCoins = inputs.AccessCoins(prevout.hash);
+                    assert(pCoins && pCoins->vtzeout.size() > prevout.n);
 
-                // Check that the witness has the same tze type and mode as the
-                // predicate. This might be duplicative of a check within the
-                // TZE code itself?
-                const CTzeData& witness = tx.vtzein[i].witness;
-                const CTzeData& predicate = pCoins->vtzeout[prevout.n].first.predicate;
-                if (witness.corresponds(predicate)) {
-                    // construct the context
-                    // FIXME: where to get the height?
-                    TzeContext ctx(0, tx);
+                    // Check that the witness has the same tze type and mode as the
+                    // predicate. This might be duplicative of a check within the
+                    // TZE code itself?
+                    const CTzeData& witness = tx.vtzein[i].witness;
+                    const CTzeData& predicate = pCoins->vtzeout[prevout.n].first.predicate;
+                    if (witness.corresponds(predicate)) {
+                        // construct the context
+                        TzeContext ctx(nHeight, tx);
 
-                    // call through to the rust API's verify function
-                    if (!tze.check(consensusBranchId, predicate, witness, ctx)) {
-                        // FIXME: Need proper levels
-                        return state.DoS(10, false, REJECT_INVALID, "tze check failed");
+                        // call through to the rust API's verify function
+                        if (!tze.check(consensusBranchId, predicate, witness, ctx)) {
+                            // FIXME: Need proper levels
+                            return state.DoS(10, false, REJECT_INVALID, "tze check failed");
+                        }
+                    } else {
+                        // FIXME: Placeholder, what should the actual rejection be?
+                        return state.DoS(100, false, REJECT_INVALID, "tze id or mode mismatch");
                     }
-                } else {
-                    // FIXME: Placeholder, what should the actual rejection be?
-                    return state.DoS(100, false, REJECT_INVALID, "tze id or mode mismatch");
                 }
             }
         }
@@ -3021,7 +3023,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
-            if (!ContextualCheckInputs(chainparams.GetTzeCapability(), tx, state, view, fExpensiveChecks, flags, fCacheResults, txdata[i], chainparams.GetConsensus(), consensusBranchId, nScriptCheckThreads ? &vChecks : NULL))
+            if (!ContextualCheckInputs(
+                        chainparams.GetTzeCapability(),
+                        tx, state, view, fExpensiveChecks, flags, fCacheResults, txdata[i],
+                        chainparams.GetConsensus(), consensusBranchId, pindex->nHeight, nScriptCheckThreads ? &vChecks : NULL))
                 return false;
             control.Add(vChecks);
         }
@@ -7051,20 +7056,13 @@ public:
 CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Params& consensusParams, int nHeight)
 {
     CMutableTransaction mtx;
-    bool isOverwintered = consensusParams.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_OVERWINTER);
-    if (isOverwintered) {
-        mtx.fOverwintered = true;
-        if (consensusParams.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_FUTURE)) {
-            mtx.nVersionGroupId = FUTURE_VERSION_GROUP_ID;
-            mtx.nVersion = FUTURE_VERSION_GROUP_ID;
-        } else if (consensusParams.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_SAPLING)) {
-            mtx.nVersionGroupId = SAPLING_VERSION_GROUP_ID;
-            mtx.nVersion = SAPLING_TX_VERSION;
-        } else {
-            mtx.nVersionGroupId = OVERWINTER_VERSION_GROUP_ID;
-            mtx.nVersion = OVERWINTER_TX_VERSION;
-        }
 
+    auto txVersionInfo = CurrentTxVersionInfo(consensusParams, nHeight);
+    mtx.fOverwintered   = txVersionInfo.fOverwintered;
+    mtx.nVersionGroupId = txVersionInfo.nVersionGroupId;
+    mtx.nVersion        = txVersionInfo.nVersion;
+
+    if (txVersionInfo.fOverwintered) {
         bool blossomActive = consensusParams.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_BLOSSOM);
         unsigned int defaultExpiryDelta = blossomActive ? DEFAULT_POST_BLOSSOM_TX_EXPIRY_DELTA : DEFAULT_PRE_BLOSSOM_TX_EXPIRY_DELTA;
         mtx.nExpiryHeight = nHeight + (expiryDeltaArg ? expiryDeltaArg.get() : defaultExpiryDelta);
@@ -7082,5 +7080,6 @@ CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Para
             mtx.nExpiryHeight = std::min(mtx.nExpiryHeight, static_cast<uint32_t>(nextActivationHeight.get()) - 1);
         }
     }
+
     return mtx;
 }

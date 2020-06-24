@@ -148,10 +148,8 @@ TEST(Validation, ContextualCheckInputsPassesWithCoinbase) {
         PrecomputedTransactionData txdata(tx);
         EXPECT_TRUE(
             ContextualCheckInputs(
-                MockTZE::getInstance(),
-                tx, state, view,
-                false, 0, false,
-                txdata, Params(CBaseChainParams::MAIN).GetConsensus(), consensusBranchId));
+                MockTZE::getInstance(), tx, state, view, false, 0, false, txdata,
+                Params(CBaseChainParams::MAIN).GetConsensus(), consensusBranchId, chainActive.Height()));
     }
 }
 
@@ -204,7 +202,7 @@ TEST(Validation, ContextualCheckInputsDetectsOldBranchId) {
     PrecomputedTransactionData txdata(tx);
     EXPECT_TRUE(ContextualCheckInputs(
         MockTZE::getInstance(), tx, state, view, true, 0, false, txdata,
-        consensusParams, overwinterBranchId));
+        consensusParams, overwinterBranchId, chainActive.Height()));
 
     // Attempt to validate the inputs against Sapling. We should be notified
     // that an old consensus branch ID was used for an input.
@@ -217,7 +215,7 @@ TEST(Validation, ContextualCheckInputsDetectsOldBranchId) {
         false)).Times(1);
     EXPECT_FALSE(ContextualCheckInputs(
         MockTZE::getInstance(), tx, mockState, view, true, 0, false, txdata,
-        consensusParams, saplingBranchId));
+        consensusParams, saplingBranchId, chainActive.Height()));
 
     // Attempt to validate the inputs against Blossom. All we should learn is
     // that the signature is invalid, because we don't check more than one
@@ -228,7 +226,7 @@ TEST(Validation, ContextualCheckInputsDetectsOldBranchId) {
         false)).Times(1);
     EXPECT_FALSE(ContextualCheckInputs(
         MockTZE::getInstance(), tx, mockState, view, true, 0, false, txdata,
-        consensusParams, blossomBranchId));
+        consensusParams, blossomBranchId, chainActive.Height()));
 
     // Tear down
     chainActive.SetTip(NULL);
@@ -383,7 +381,7 @@ TEST(Validation, ContextualCheckInputsPassesWithTZE) {
         PrecomputedTransactionData txdata(tx);
         EXPECT_TRUE(ContextualCheckInputs(
             LibrustzcashTZE::getInstance(), tx, state, view0, true, 0, false, txdata,
-            consensusParams, futureBranchID));
+            consensusParams, futureBranchID, chainActive.Height()));
 
         // reproduce the previous output to add it to the fake view with a fake txid
         CTzeOut out0(tzeValue0, predicate0);
@@ -413,7 +411,7 @@ TEST(Validation, ContextualCheckInputsPassesWithTZE) {
 
         EXPECT_TRUE(ContextualCheckInputs(
             LibrustzcashTZE::getInstance(), tx2, state, view1, true, 0, false, txdata2,
-            consensusParams, futureBranchID));
+            consensusParams, futureBranchID, chainActive.Height()));
     } catch (UniValue e) {
         cout << e.write(1, 2);
         throw e;
