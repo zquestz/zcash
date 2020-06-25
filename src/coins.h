@@ -165,10 +165,13 @@ public:
 
     size_t DynamicMemoryUsage() const {
         size_t ret = memusage::DynamicUsage(vout);
-        BOOST_FOREACH(const CTxOut &out, vout) {
-            ret += RecursiveDynamicUsage(out.scriptPubKey);
+        BOOST_FOREACH(const CTxOut& txout, vout) {
+            ret += RecursiveDynamicUsage(txout.scriptPubKey);
         }
-        // TZE: do we need the same here?
+
+        BOOST_FOREACH(auto tzeout, vtzeout) {
+            ret += RecursiveDynamicUsage(tzeout.first);
+        }
         return ret;
     }
 };
