@@ -1177,10 +1177,17 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state,
     }
 }
 
+/**
+ * Basic checks that don't depend on any context.
+ *
+ * This function must obey the following contract: it must reject transactions
+ * that are invalid according to the transaction's embedded version
+ * information, but it may accept transactions that are valid with respect to
+ * embedded version information but are invalid with respect to current
+ * consensus rules.
+ */
 bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidationState &state)
 {
-    // Basic checks that don't depend on any context
-
     /**
      * Previously:
      * 1. The consensus rule below was:
@@ -1228,6 +1235,7 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
     if (tx.vin.empty() && tx.vJoinSplit.empty() && tx.vShieldedSpend.empty() && tx.vtzein.empty())
         return state.DoS(10, error("CheckTransaction(): vin empty"),
                          REJECT_INVALID, "bad-txns-vin-empty");
+
     // Transactions containing empty `vout` must have either non-empty
     // `vJoinSplit` or non-empty `vShieldedOutput` or non-empty `vtzeout`.
     if (tx.vout.empty() && tx.vJoinSplit.empty() && tx.vShieldedOutput.empty() && tx.vtzeout.empty())
@@ -2418,6 +2426,16 @@ bool ContextualCheckInputs(
                         // FIXME: Placeholder, what should the actual rejection be?
                         return state.DoS(100, false, REJECT_INVALID, "tze id or mode mismatch");
                     }
+                }
+            } else {
+                // Consensus rules must reject TZE-relevant data in transactions if the TZE
+                // feature is not enabled
+                if (tx.vtzein.size() > 0) {
+                    return state.DoS(100, false, REJECT_INVALID, "TZE inputs present, but TZE-mode is not enabled.");
+                }
+
+                if (tx.vtzeout.size() > 0) {
+                    return state.DoS(100, false, REJECT_INVALID, "TZE outputs present, but TZE-mode is not enabled");
                 }
             }
         }
