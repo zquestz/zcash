@@ -804,15 +804,18 @@ bool ContextualCheckTransaction(
     auto dosLevelPotentiallyRelaxing = isMined ? DOS_LEVEL_BLOCK : (
         isInitBlockDownload(chainparams) ? 0 : DOS_LEVEL_MEMPOOL);
 
-    bool overwinterActive = chainparams.GetConsensus().NetworkUpgradeActive(nHeight, Consensus::UPGRADE_OVERWINTER);
-    bool saplingActive = chainparams.GetConsensus().NetworkUpgradeActive(nHeight, Consensus::UPGRADE_SAPLING);
+    auto consensus = chainparams.GetConsensus();
+    bool overwinterActive = consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_OVERWINTER);
+    bool saplingActive = consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_SAPLING);
     bool beforeOverwinter = !overwinterActive;
-    bool heartwoodActive = chainparams.GetConsensus().NetworkUpgradeActive(nHeight, Consensus::UPGRADE_HEARTWOOD);
-    bool canopyActive = chainparams.GetConsensus().NetworkUpgradeActive(nHeight, Consensus::UPGRADE_CANOPY);
+    bool heartwoodActive = consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_HEARTWOOD);
+    bool canopyActive = consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_CANOPY);
+    bool futureActive = consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_FUTURE);
 
     assert(!saplingActive || overwinterActive); // Sapling cannot be active unless Overwinter is
     assert(!heartwoodActive || saplingActive);  // Heartwood cannot be active unless Sapling is
     assert(!canopyActive || heartwoodActive);   // Canopy cannot be active unless Heartwood is
+    assert(!futureActive || canopyActive);      // FUTURE must always include the latest live version
 
     // Rules that apply only to Sprout
     if (beforeOverwinter) {
@@ -1024,8 +1027,8 @@ bool ContextualCheckTransaction(
         // after Canopy activation.
     }
 
-    auto consensusBranchId = CurrentEpochBranchId(nHeight, chainparams.GetConsensus());
-    auto prevConsensusBranchId = PrevEpochBranchId(consensusBranchId, chainparams.GetConsensus());
+    auto consensusBranchId = CurrentEpochBranchId(nHeight, consensus);
+    auto prevConsensusBranchId = PrevEpochBranchId(consensusBranchId, consensus);
     uint256 dataToBeSigned;
     uint256 prevDataToBeSigned;
 
@@ -1263,6 +1266,10 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
     }
 
     // Check for negative or overflow TZE output values
+    //
+    // In the case that the TZE extension is not enabled, this check
+    // is still valid, according to the false-positive semantics of this
+    // function.
     BOOST_FOREACH(const CTzeOut& tzeout, tx.vtzeout)
     {
         if (tzeout.nValue < 0)
@@ -1536,20 +1543,26 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const TZE& tz
     if (pool.exists(hash))
         return false;
 
-    // Check for conflicts with in-memory transactions
+    // Check for conflicts with in-memory transactions (situations where
+    // the mempool already contains transactions that spend the same inputs.)
     {
     LOCK(pool.cs); // protect pool.mapNextTx
     for (unsigned int i = 0; i < tx.vin.size(); i++)
     {
         COutPoint outpoint = tx.vin[i].prevout;
-        if (pool.mapNextTx.count(outpoint))
-        {
+        if (pool.spendingTxExists(outpoint)) {
             // Disable replacement feature for now (replace-by-fee)
             return false;
         }
     }
-    // TZE FIXME: tzein handling? mapNextTx identifies outputs already spent
-    // by transactions in the mempool.
+
+    for (unsigned int i = 0; i < tx.vtzein.size(); i++)
+    {
+        COutPoint outpoint = tx.vtzein[i].prevout;
+        if (pool.spendingTzeTxExists(outpoint)) {
+            return false;
+        }
+    }
 
     BOOST_FOREACH(const JSDescription &joinsplit, tx.vJoinSplit) {
         BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
