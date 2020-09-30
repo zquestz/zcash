@@ -11,30 +11,7 @@
 
 #include <assert.h>
 
-/**
- * calculate number of bytes for the bitmask, and its number of non-zero bytes
- * each bit in the bitmask represents the availability of one output, but the
- * availabilities of the first two outputs are encoded separately
- */
-void CCoins::CalcMaskSize(unsigned int &nBytes, unsigned int &nNonzeroBytes) const {
-    unsigned int nLastUsedByte = 0;
-    for (unsigned int b = 0; 2+b*8 < vout.size(); b++) {
-        bool fZero = true;
-        for (unsigned int i = 0; i < 8 && 2+b*8+i < vout.size(); i++) {
-            if (!vout[2+b*8+i].IsNull()) {
-                fZero = false;
-                continue;
-            }
-        }
-        if (!fZero) {
-            nLastUsedByte = b + 1;
-            nNonzeroBytes++;
-        }
-    }
-    nBytes += nLastUsedByte;
-}
-
-bool CCoins::Spend(uint32_t nPos) 
+bool CCoins::Spend(uint32_t nPos)
 {
     if (nPos >= vout.size() || vout[nPos].IsNull())
         return false;
@@ -483,7 +460,7 @@ void CCoinsViewCache::PushHistoryNode(uint32_t epochId, const HistoryNode node) 
     std::array<HistoryNode, 32> appendBuf = {};
 
     uint32_t appends = librustzcash_mmr_append(
-        epochId, 
+        epochId,
         historyCache.length,
         entry_indices.data(),
         entries.data(),
@@ -516,7 +493,7 @@ void CCoinsViewCache::PopHistoryNode(uint32_t epochId) {
             // `SelectHistoryCache` selects the tree for the new consensus
             // branch ID, not the one that existed on the chain being rolled
             // back.
-            
+
             // Sensible action is to truncate the history cache:
         }
         case 1:
