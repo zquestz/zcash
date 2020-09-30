@@ -17,14 +17,14 @@ namespace Consensus {
 
     bool Params::FeatureActive(const int nHeight, const Consensus::ConsensusFeature feature) const {
         auto requires = WhatDependsOn(feature);
-        if (vRequiredFeatures.count(feature) > 0 || 
+        if (vRequiredFeatures.count(feature) > 0 ||
             Any(requires, [&](Consensus::ConsensusFeature feat) { return FeatureActive(nHeight, feat); })) {
             // Either the feature is active, or it is a dependency of an active feature.
             return true;
         } else {
             switch (feature) {
                 case ZIP222_TZE:
-                    return NetworkUpgradeActive(nHeight, UpgradeIndex::UPGRADE_FUTURE);
+                    return NetworkUpgradeActive(nHeight, UpgradeIndex::UPGRADE_ZFUTURE);
 
                 default:
                     return false;

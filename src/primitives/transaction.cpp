@@ -370,10 +370,10 @@ std::string CTransaction::ToString() const
  */
 TxVersionInfo CurrentTxVersionInfo(const Consensus::Params& consensus, int nHeight) {
     if (consensus.FeatureActive(nHeight, Consensus::ZIP222_TZE)) {
-        return { 
+        return {
             /* fOverwintered =    */ true,
-            /* nVersionGroupId = */ FUTURE_VERSION_GROUP_ID,
-            /* nVersion =        */ FUTURE_TX_VERSION
+            /* nVersionGroupId = */ ZFUTURE_VERSION_GROUP_ID,
+            /* nVersion =        */ ZFUTURE_TX_VERSION
         };
     } else if (consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_SAPLING)) {
         return {

@@ -319,7 +319,7 @@ TEST(Validation, ContextualCheckInputsPassesWithTZE) {
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_BLOSSOM, 30);
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_HEARTWOOD, 40);
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_CANOPY, 50);
-    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_FUTURE, 60);
+    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_ZFUTURE, 60);
     auto consensusParams = Params(CBaseChainParams::REGTEST).GetConsensus();
 
     auto overwinterBranchId = NetworkUpgradeInfo[Consensus::UPGRADE_OVERWINTER].nBranchId;
@@ -327,7 +327,7 @@ TEST(Validation, ContextualCheckInputsPassesWithTZE) {
     auto blossomBranchId = NetworkUpgradeInfo[Consensus::UPGRADE_BLOSSOM].nBranchId;
     auto heartwoodBranchID = NetworkUpgradeInfo[Consensus::UPGRADE_HEARTWOOD].nBranchId;
     auto canopyBranchID = NetworkUpgradeInfo[Consensus::UPGRADE_CANOPY].nBranchId;
-    auto futureBranchID = NetworkUpgradeInfo[Consensus::UPGRADE_FUTURE].nBranchId;
+    auto futureBranchID = NetworkUpgradeInfo[Consensus::UPGRADE_ZFUTURE].nBranchId;
 
     CBasicKeyStore keystore;
     CKey tsk = AddTestCKeyToKeyStore(keystore);
@@ -355,7 +355,7 @@ TEST(Validation, ContextualCheckInputsPassesWithTZE) {
         CCoinsViewCache view0(&fakeDB0);
 
         // Create a transparent transaction that spends the coin, targeting
-        // a height during the <FUTURE> epoch
+        // a height during the <ZFUTURE> epoch
         auto builder = TransactionBuilder(consensusParams, 65, &keystore);
         builder.AddTransparentInput(utxo0, scriptPubKey, transparentValue0);
         CTxDestination dest = tsk.GetPubKey().GetID();
@@ -376,7 +376,7 @@ TEST(Validation, ContextualCheckInputsPassesWithTZE) {
         auto tx = builder.Build().GetTxOrThrow();
         ASSERT_FALSE(tx.IsCoinBase());
 
-        // Ensure that the inputs validate against <FUTURE> consensus rules
+        // Ensure that the inputs validate against <ZFUTURE> consensus rules
         CValidationState state;
         PrecomputedTransactionData txdata(tx);
         EXPECT_TRUE(ContextualCheckInputs(

@@ -810,12 +810,12 @@ bool ContextualCheckTransaction(
     bool beforeOverwinter = !overwinterActive;
     bool heartwoodActive = consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_HEARTWOOD);
     bool canopyActive = consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_CANOPY);
-    bool futureActive = consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_FUTURE);
+    bool futureActive = consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_ZFUTURE);
 
     assert(!saplingActive || overwinterActive); // Sapling cannot be active unless Overwinter is
     assert(!heartwoodActive || saplingActive);  // Heartwood cannot be active unless Sapling is
     assert(!canopyActive || heartwoodActive);   // Canopy cannot be active unless Heartwood is
-    assert(!futureActive || canopyActive);      // FUTURE must always include the latest live version
+    assert(!futureActive || canopyActive);      // ZFUTURE must always include the latest live version
 
     // Rules that apply only to Sprout
     if (beforeOverwinter) {

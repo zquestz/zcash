@@ -51,12 +51,12 @@ static_assert(SAPLING_TX_VERSION <= SAPLING_MAX_TX_VERSION,
     "Sapling tx version must not be higher than maximum");
 
 // Future transaction version group id
-static constexpr uint32_t FUTURE_VERSION_GROUP_ID = 0xFFFFFFFF;
-static_assert(FUTURE_VERSION_GROUP_ID != 0, "version group id must be non-zero as specified in ZIP 202");
+static constexpr uint32_t ZFUTURE_VERSION_GROUP_ID = 0xFFFFFFFF;
+static_assert(ZFUTURE_VERSION_GROUP_ID != 0, "version group id must be non-zero as specified in ZIP 202");
 
 // Future transaction version. This value must only be used
 // in integration-testing contexts.
-static const int32_t FUTURE_TX_VERSION = 0x0000FFFF;
+static const int32_t ZFUTURE_TX_VERSION = 0x0000FFFF;
 
 struct TxVersionInfo {
     bool fOverwintered;
@@ -752,11 +752,11 @@ public:
         // a per-enabled-feature basis.The approach here is that all
         // serialization rules for not-yet-released features must be
         // non-conflicting and transaction version/group must be set to
-        // FUTURE_TX_(VERSION/GROUP_ID)
+        // ZFUTURE_TX_(VERSION/GROUP_ID)
         bool isFuture =
             fOverwintered &&
-            nVersionGroupId == FUTURE_VERSION_GROUP_ID &&
-            nVersion == FUTURE_TX_VERSION;
+            nVersionGroupId == ZFUTURE_VERSION_GROUP_ID &&
+            nVersion == ZFUTURE_TX_VERSION;
 
         if (fOverwintered && !(isOverwinterV3 || isSaplingV4 || isFuture)) {
             throw std::ios_base::failure("Unknown transaction format");
@@ -913,8 +913,8 @@ struct CMutableTransaction
             nVersion == SAPLING_TX_VERSION;
         bool isFuture =
             fOverwintered &&
-            nVersionGroupId == FUTURE_VERSION_GROUP_ID &&
-            nVersion == FUTURE_TX_VERSION;
+            nVersionGroupId == ZFUTURE_VERSION_GROUP_ID &&
+            nVersion == ZFUTURE_TX_VERSION;
         if (fOverwintered && !(isOverwinterV3 || isSaplingV4 || isFuture)) {
             throw std::ios_base::failure("Unknown transaction format");
         }

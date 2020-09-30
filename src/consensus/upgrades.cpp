@@ -46,7 +46,7 @@ const struct NUInfo NetworkUpgradeInfo[Consensus::MAX_NETWORK_UPGRADES] = {
     },
     {
         /*.nBranchId =*/ 0xffffffff,
-        /*.strName =*/ "FUTURE",
+        /*.strName =*/ "ZFUTURE",
         /*.strInfo =*/ "Future network upgrade (integration testing only)",
     }
 };
