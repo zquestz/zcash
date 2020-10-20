@@ -1154,6 +1154,19 @@ bool ContextualCheckTransaction(
 
         librustzcash_sapling_verification_ctx_free(ctx);
     }
+
+    // Reject transactions containing TZE-relevant data if the TZE
+    // feature is not enabled
+    if (!consensus.FeatureActive(nHeight, Consensus::ZIP222_TZE)) {
+        if (tx.vtzein.size() > 0) {
+            return state.DoS(100, false, REJECT_INVALID, "TZE inputs present, but TZE-mode is not enabled.");
+        }
+
+        if (tx.vtzeout.size() > 0) {
+            return state.DoS(100, false, REJECT_INVALID, "TZE outputs present, but TZE-mode is not enabled");
+        }
+    }
+
     return true;
 }
 
@@ -2439,16 +2452,6 @@ bool ContextualCheckInputs(
                         // FIXME: Placeholder, what should the actual rejection be?
                         return state.DoS(100, false, REJECT_INVALID, "tze id or mode mismatch");
                     }
-                }
-            } else {
-                // Consensus rules must reject TZE-relevant data in transactions if the TZE
-                // feature is not enabled
-                if (tx.vtzein.size() > 0) {
-                    return state.DoS(100, false, REJECT_INVALID, "TZE inputs present, but TZE-mode is not enabled.");
-                }
-
-                if (tx.vtzeout.size() > 0) {
-                    return state.DoS(100, false, REJECT_INVALID, "TZE outputs present, but TZE-mode is not enabled");
                 }
             }
         }

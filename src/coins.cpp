@@ -17,8 +17,9 @@
  */
 bool CCoins::Spend(uint32_t nPos)
 {
-    // Why the .IsNull() check here? This stops us from running
-    // the Cleanup() call
+    // The IsNull() call here is a little odd; it's indicating
+    // a state in which `SetNull` was called but was not followed
+    // by a `Cleanup` - and is skipping the `Cleanup` yet again.
     if (nPos >= vout.size() || vout[nPos].IsNull())
         return false;
     vout[nPos].SetNull();
