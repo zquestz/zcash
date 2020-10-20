@@ -119,10 +119,6 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason, const CChainParam
         }
     }
 
-    if (tx.vtzeout.size() > 0) {
-        return false;
-    }
-
     // only one OP_RETURN txout is permitted
     if (nDataOut > 1) {
         reason = "multi-op-return";
