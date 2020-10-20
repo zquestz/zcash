@@ -21,6 +21,10 @@ static inline size_t RecursiveDynamicUsage(const COutPoint& out) {
     return 0; //why is this 0?
 }
 
+static inline size_t RecursiveDynamicUsage(const CTzeOutPoint& out) {
+    return 0;
+}
+
 static inline size_t RecursiveDynamicUsage(const CTxIn& in) {
     return RecursiveDynamicUsage(in.scriptSig) + RecursiveDynamicUsage(in.prevout);
 }

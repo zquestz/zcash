@@ -84,7 +84,7 @@ void CTxMemPool::pruneSpent(const uint256 &hashTx, CCoins &coins)
         it++;
     }
 
-    std::map<COutPoint, CTzeInPoint>::iterator tzeit = mapNextTzeTx.lower_bound(COutPoint(hashTx, 0));
+    std::map<CTzeOutPoint, CTzeInPoint>::iterator tzeit = mapNextTzeTx.lower_bound(CTzeOutPoint(hashTx, 0));
     while (tzeit != mapNextTzeTx.end() && tzeit->first.hash == hashTx) {
         coins.SpendTzeOut(tzeit->first.n); // and remove those outputs from coins
         tzeit++;
@@ -264,7 +264,7 @@ void CTxMemPool::remove(const CTransaction &origTx, std::list<CTransaction>& rem
             }
 
             for (unsigned int i = 0; i < origTx.vtzeout.size(); i++) {
-                std::map<COutPoint, CTzeInPoint>::iterator it = mapNextTzeTx.find(COutPoint(origTx.GetHash(), i));
+                std::map<CTzeOutPoint, CTzeInPoint>::iterator it = mapNextTzeTx.find(CTzeOutPoint(origTx.GetHash(), i));
                 if (it == mapNextTzeTx.end())
                     continue;
                 txToRemove.push_back(it->second.ptx->GetHash());
@@ -287,7 +287,7 @@ void CTxMemPool::remove(const CTransaction &origTx, std::list<CTransaction>& rem
                 }
 
                 for (unsigned int i = 0; i < tx.vtzeout.size(); i++) {
-                    std::map<COutPoint, CTzeInPoint>::iterator it = mapNextTzeTx.find(COutPoint(hash, i));
+                    std::map<CTzeOutPoint, CTzeInPoint>::iterator it = mapNextTzeTx.find(CTzeOutPoint(hash, i));
                     if (it == mapNextTzeTx.end())
                         continue;
                     txToRemove.push_back(it->second.ptx->GetHash());
@@ -412,7 +412,7 @@ void CTxMemPool::removeConflicts(const CTransaction &tx, std::list<CTransaction>
     }
 
     BOOST_FOREACH(const CTzeIn &tzein, tx.vtzein) {
-        std::map<COutPoint, CTzeInPoint>::iterator it = mapNextTzeTx.find(tzein.prevout);
+        std::map<CTzeOutPoint, CTzeInPoint>::iterator it = mapNextTzeTx.find(tzein.prevout);
         if (it != mapNextTzeTx.end()) {
             const CTransaction &txConflict = *it->second.ptx;
             if (txConflict != tx)
@@ -582,7 +582,7 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
                 assert(coins && coins->IsTzeAvailable(tzein.prevout.n));
             }
             // Check whether its inputs are marked in mapNextTzeTx.
-            std::map<COutPoint, CTzeInPoint>::const_iterator it3 = mapNextTzeTx.find(tzein.prevout);
+            std::map<CTzeOutPoint, CTzeInPoint>::const_iterator it3 = mapNextTzeTx.find(tzein.prevout);
             assert(it3 != mapNextTzeTx.end());
             assert(it3->second.ptx == &tx);
             assert(it3->second.n == tzi);
@@ -658,7 +658,7 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
         assert(it->first == it->second.ptx->vin[it->second.n].prevout);
     }
 
-    for (std::map<COutPoint, CTzeInPoint>::const_iterator it = mapNextTzeTx.begin(); it != mapNextTzeTx.end(); it++) {
+    for (std::map<CTzeOutPoint, CTzeInPoint>::const_iterator it = mapNextTzeTx.begin(); it != mapNextTzeTx.end(); it++) {
         uint256 hash = it->second.ptx->GetHash();
         indexed_transaction_set::const_iterator it2 = mapTx.find(hash);
         const CTransaction& tx = it2->GetTx();
@@ -802,7 +802,7 @@ bool CTxMemPool::spendingTxExists(const COutPoint& outpoint) const {
     return mapNextTx.count(outpoint) > 0;
 }
 
-bool CTxMemPool::spendingTzeTxExists(const COutPoint& outpoint) const {
+bool CTxMemPool::spendingTzeTxExists(const CTzeOutPoint& outpoint) const {
     return mapNextTzeTx.count(outpoint) > 0;
 }
 
@@ -879,7 +879,7 @@ size_t CTxMemPool::DynamicMemoryUsage() const {
     total += memusage::MallocUsage(sizeof(CTxMemPoolEntry) + 6 * sizeof(void*)) * mapTx.size();
 
     // Two metadata maps inherited from Bitcoin Core
-    total += memusage::DynamicUsage(mapNextTx) + 
+    total += memusage::DynamicUsage(mapNextTx) +
              memusage::DynamicUsage(mapNextTzeTx) +
              memusage::DynamicUsage(mapDeltas);
 

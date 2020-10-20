@@ -147,7 +147,7 @@ public:
 
     void AddTransparentOutput(const CTxDestination& to, CAmount value);
 
-    void AddTzeInput(COutPoint utxo, CTzeData witness, CAmount value);
+    void AddTzeInput(CTzeOutPoint utxo, CTzeData witness, CAmount value);
 
     void AddTzeOutput(CAmount value, CTzeData predicate);
 

@@ -398,6 +398,15 @@ public:
     std::string ToString() const;
 };
 
+/** An outpoint - a combination of a transaction hash and an index n into its vtzeout */
+class CTzeOutPoint : public BaseOutPoint
+{
+public:
+    CTzeOutPoint() : BaseOutPoint() {};
+    CTzeOutPoint(uint256 hashIn, uint32_t nIn) : BaseOutPoint(hashIn, nIn) {};
+    std::string ToString() const;
+};
+
 /** An input of a transaction.  It contains the location of the previous
  * transaction's output that it claims and a signature that matches the
  * output's public key.
@@ -608,7 +617,7 @@ public:
 class CTzeIn
 {
 public:
-    COutPoint prevout;
+    CTzeOutPoint prevout;
     CTzeData witness;
 
     CTzeIn() {
@@ -617,7 +626,7 @@ public:
     CTzeIn(const CTzeIn& in): prevout(in.prevout), witness(in.witness) {
     }
 
-    CTzeIn(COutPoint prevoutIn, CTzeData witnessIn): prevout(prevoutIn), witness(witnessIn) {
+    CTzeIn(CTzeOutPoint prevoutIn, CTzeData witnessIn): prevout(prevoutIn), witness(witnessIn) {
     }
 
     ADD_SERIALIZE_METHODS;

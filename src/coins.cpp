@@ -978,7 +978,7 @@ bool CCoinsViewCache::HaveInputs(const CTransaction& tx) const
         }
 
         for (unsigned int i = 0; i < tx.vtzein.size(); i++) {
-            const COutPoint &prevout = tx.vtzein[i].prevout;
+            const CTzeOutPoint &prevout = tx.vtzein[i].prevout;
             const CCoins* coins = AccessCoins(prevout.hash);
             if (!coins || !coins->IsTzeAvailable(prevout.n)) {
                 return false;

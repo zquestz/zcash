@@ -1394,7 +1394,7 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
     }
 
     // Check for duplicate TZE inputs
-    set<COutPoint> vTzeInOutPoints;
+    set<CTzeOutPoint> vTzeInOutPoints;
     BOOST_FOREACH(const CTzeIn& tzein, tx.vtzein)
     {
         if (vTzeInOutPoints.count(tzein.prevout))
@@ -1571,7 +1571,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const TZE& tz
 
     for (unsigned int i = 0; i < tx.vtzein.size(); i++)
     {
-        COutPoint outpoint = tx.vtzein[i].prevout;
+        CTzeOutPoint outpoint = tx.vtzein[i].prevout;
         if (pool.spendingTzeTxExists(outpoint)) {
             return false;
         }
@@ -2314,7 +2314,7 @@ bool CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoins
         // nValueIn for a transaction must include TZE inputs.
         for (unsigned int i = 0; i < tx.vtzein.size(); i++)
         {
-            const COutPoint &prevout = tx.vtzein[i].prevout;
+            const CTzeOutPoint &prevout = tx.vtzein[i].prevout;
             const CCoins *pCoins = inputs.AccessCoins(prevout.hash);
             assert(pCoins && pCoins->vtzeout.size() > prevout.n);
 
@@ -2430,7 +2430,7 @@ bool ContextualCheckInputs(
                 // for each TZE input, look up the associated prior TZE output, and pass both
                 // to the extension checker.
                 for (unsigned int i = 0; i < tx.vtzein.size(); i++) {
-                    const COutPoint& prevout = tx.vtzein[i].prevout;
+                    const CTzeOutPoint& prevout = tx.vtzein[i].prevout;
                     const CCoins* pCoins = inputs.AccessCoins(prevout.hash);
                     assert(pCoins && pCoins->vtzeout.size() > prevout.n);
 

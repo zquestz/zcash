@@ -385,7 +385,7 @@ TEST(Validation, ContextualCheckInputsPassesWithTZE) {
 
         // reproduce the previous output to add it to the fake view with a fake txid
         CTzeOut out0(tzeValue0, predicate0);
-        COutPoint utzeo0(uint256S("5252525252525252525252525252525252525252525252525252525252525252"), 0);
+        CTzeOutPoint utzeo0(uint256S("5252525252525252525252525252525252525252525252525252525252525252"), 0);
         ValidationFakeCoinsViewDB fakeDB1(blockHash, utzeo0.hash, out0, 51);
         CCoinsViewCache view1(&fakeDB1);
 
