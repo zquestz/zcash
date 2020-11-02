@@ -84,15 +84,19 @@ public:
      * handling the appropriate compactions. --kjn
      */
     void Cleanup() {
-        while (vout.size() > 0 && vout.back().IsNull())
+        while (vout.size() > 0 && vout.back().IsNull()) {
             vout.pop_back();
-        if (vout.empty())
+        }
+        if (vout.empty()) {
             std::vector<CTxOut>().swap(vout);
+        }
 
-        while (vtzeout.size() > 0 && vtzeout.back().second == SPENT)
+        while (vtzeout.size() > 0 && vtzeout.back().second == SPENT) {
             vtzeout.pop_back();
-        if (vtzeout.empty())
+        }
+        if (vtzeout.empty()) {
             std::vector<TzeOutCoin>().swap(vtzeout);
+        }
     }
 
     void ClearUnspendable() {
