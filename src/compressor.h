@@ -119,12 +119,12 @@ public:
 };
 
 /** wrapper for CTzeOut that provides a more compact serialization */
-class CTzeOutSer
+class CTzeOutCompressor
 {
 public:
     CTzeOut& tzeout;
 
-    CTzeOutSer(CTzeOut& tzeoutIn) : tzeout(tzeoutIn) { }
+    CTzeOutCompressor(CTzeOut& tzeoutIn) : tzeout(tzeoutIn) { }
 
     ADD_SERIALIZE_METHODS;
 

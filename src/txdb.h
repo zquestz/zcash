@@ -154,7 +154,7 @@ public:
  * - the non-spent CTxOuts (via CTxOutCompressor)
  * - VARINT(nTzeCode)
  * - unspentness bitvector, for vtzeout[2] and further; least significant byte first
- * - the non-spent CTzeOuts (via CTzeOutSer)
+ * - the non-spent CTzeOuts (via CTzeOutCompressor)
  * - VARINT(nHeight)
  *
  * The nCode value consists of:
@@ -314,7 +314,7 @@ public:
             WriteMask(s, coins.vtzeout, tzeoutSpent, nTzeMaskSize);
             for (unsigned int i = 0; i < coins.vtzeout.size(); i++) {
                 if (coins.vtzeout[i].second == UNSPENT)
-                    ::Serialize(s, CTzeOutSer(REF(coins.vtzeout[i].first)));
+                    ::Serialize(s, CTzeOutCompressor(REF(coins.vtzeout[i].first)));
             }
         }
         // coinbase height
@@ -348,7 +348,7 @@ public:
             coins.vtzeout.assign(vAvail.size(), std::make_pair(CTzeOut(), SPENT));
             for (unsigned int i = 0; i < vAvail.size(); i++) {
                 if (vAvail[i]) {
-                    ::Unserialize(s, REF(CTzeOutSer(coins.vtzeout[i].first)));
+                    ::Unserialize(s, REF(CTzeOutCompressor(coins.vtzeout[i].first)));
                     coins.vtzeout[i].second = UNSPENT;
                 }
             }
