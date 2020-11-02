@@ -1278,6 +1278,9 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
             return state.DoS(100, error("CheckTransaction(): txout.nValue too high"),
                              REJECT_INVALID, "bad-txns-vout-toolarge");
         nValueOut += txout.nValue;
+        if (!MoneyRange(nValueOut))
+            return state.DoS(100, error("CheckTransaction(): txout total out of range"),
+                             REJECT_INVALID, "bad-txns-txouttotal-toolarge");
     }
 
     // Check for negative or overflow TZE output values
@@ -1293,11 +1296,10 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
             return state.DoS(100, error("CheckTransaction(): tzeout.nValue too high"),
                              REJECT_INVALID, "bad-txns-vout-toolarge");
         nValueOut += tzeout.nValue;
+        if (!MoneyRange(nValueOut))
+            return state.DoS(100, error("CheckTransaction(): tzeout total out of range"),
+                             REJECT_INVALID, "bad-txns-tzeouttotal-toolarge");
     }
-
-    if (!MoneyRange(nValueOut))
-        return state.DoS(100, error("CheckTransaction(): transparent total out of range"),
-                         REJECT_INVALID, "bad-txns-txouttotal-toolarge");
 
     // Check for non-zero valueBalance when there are no Sapling inputs or outputs
     if (tx.vShieldedSpend.empty() && tx.vShieldedOutput.empty() && tx.valueBalance != 0) {
@@ -1322,8 +1324,7 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
     }
 
     // Ensure that joinsplit values are well-formed
-    BOOST_FOREACH(const JSDescription& joinsplit, tx.vJoinSplit)
-    {
+    for (const JSDescription& joinsplit : tx.vJoinSplit) {
         if (joinsplit.vpub_old < 0) {
             return state.DoS(100, error("CheckTransaction(): joinsplit.vpub_old negative"),
                              REJECT_INVALID, "bad-txns-vpub_old-negative");
