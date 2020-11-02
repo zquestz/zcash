@@ -18,7 +18,7 @@ namespace Consensus {
     bool Params::FeatureActive(const int nHeight, const Consensus::ConsensusFeature feature) const {
         auto requires = WhatDependsOn(feature);
         if (vRequiredFeatures.count(feature) > 0 ||
-            Any(requires, [&](Consensus::ConsensusFeature feat) { return FeatureActive(nHeight, feat); })) {
+            std::any_of(requires.begin(), requires.end(), [&](Consensus::ConsensusFeature feat) { return FeatureActive(nHeight, feat); })) {
             // Either the feature is required, or it is a dependency of an active feature.
             return true;
         } else {
