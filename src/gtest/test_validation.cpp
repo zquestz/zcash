@@ -313,12 +313,7 @@ TEST(Validation, ReceivedBlockTransactions) {
 }
 
 TEST(Validation, ContextualCheckInputsPassesWithTZE) {
-    SelectParams(CBaseChainParams::REGTEST);
-    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_OVERWINTER, 10);
-    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_SAPLING, 20);
-    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_BLOSSOM, 30);
-    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_HEARTWOOD, 40);
-    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_CANOPY, 50);
+    RegtestActivateCanopy(false, 50);
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_ZFUTURE, 60);
     auto consensusParams = Params(CBaseChainParams::REGTEST).GetConsensus();
 
@@ -407,6 +402,10 @@ TEST(Validation, ContextualCheckInputsPassesWithTZE) {
         EXPECT_TRUE(ContextualCheckInputs(
             LibrustzcashTZE::getInstance(), tx2, state, view1, true, 0, false, txdata2,
             consensusParams, futureBranchID, chainActive.Height()));
+
+        // Reset upgrade activations.
+        UpdateNetworkUpgradeParameters(Consensus::UPGRADE_ZFUTURE, Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT);
+        RegtestDeactivateCanopy();
     } catch (UniValue e) {
         cout << e.write(1, 2);
         throw e;
