@@ -1561,19 +1561,15 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const TZE& tz
     // the mempool already contains transactions that spend the same inputs.)
     {
     LOCK(pool.cs); // protect pool.mapNextTx
-    for (unsigned int i = 0; i < tx.vin.size(); i++)
-    {
-        COutPoint outpoint = tx.vin[i].prevout;
-        if (pool.spendingTxExists(outpoint)) {
+    for (const CTxIn& txin : tx.vin) {
+        if (pool.spendingTxExists(txin.prevout)) {
             // Disable replacement feature for now (replace-by-fee)
             return false;
         }
     }
 
-    for (unsigned int i = 0; i < tx.vtzein.size(); i++)
-    {
-        CTzeOutPoint outpoint = tx.vtzein[i].prevout;
-        if (pool.spendingTzeTxExists(outpoint)) {
+    for (const CTzeIn& tzein : tx.vtzein) {
+        if (pool.spendingTzeTxExists(tzein.prevout)) {
             return false;
         }
     }
