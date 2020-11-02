@@ -100,7 +100,7 @@ public:
     }
 
     void ClearUnspendable() {
-        BOOST_FOREACH(CTxOut &txout, vout) {
+        for(CTxOut &txout : vout) {
             if (txout.scriptPubKey.IsUnspendable())
                 txout.SetNull();
         }
@@ -146,7 +146,7 @@ public:
 
     //! check whether a particular output is still available
     bool IsAvailable(unsigned int nPos) const {
-        return (nPos < vout.size() && !vout[nPos].IsNull());
+        return nPos < vout.size() && !vout[nPos].IsNull();
     }
 
     bool IsTzeAvailable(unsigned int nPos) const {
@@ -156,26 +156,31 @@ public:
     //! check whether the entire CCoins is spent
     //! note that only !IsPruned() CCoins can be serialized
     bool IsPruned() const {
-        BOOST_FOREACH(const CTxOut &out, vout)
-            if (!out.IsNull())
+        for (const CTxOut& txout : vout) {
+            if (!txout.IsNull()) {
                 return false;
+            }
+        }
 
-        BOOST_FOREACH(const TzeOutCoin& out, vtzeout)
-            if (out.second == UNSPENT)
+        for (const TzeOutCoin& tzeout : vtzeout) {
+            if (tzeout.second == UNSPENT) {
                 return false;
+            }
+        }
 
         return true;
     }
 
     size_t DynamicMemoryUsage() const {
         size_t ret = memusage::DynamicUsage(vout);
-        BOOST_FOREACH(const CTxOut& txout, vout) {
+        for (const CTxOut& txout : vout) {
             ret += RecursiveDynamicUsage(txout.scriptPubKey);
         }
 
-        BOOST_FOREACH(auto tzeout, vtzeout) {
+        for (const TzeOutCoin& tzeout : vtzeout) {
             ret += RecursiveDynamicUsage(tzeout.first);
         }
+
         return ret;
     }
 };
