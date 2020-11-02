@@ -146,6 +146,7 @@ enum ConsensusFeature : uint32_t {
     // Index value for the maximum consensus feature ID.
     MAX_FEATURES
 };
+const auto FIRST_CONSENSUS_FEATURE = ZIP222_TZE;
 
 struct FeatureInfo {
     std::vector<ConsensusFeature> dependencies;

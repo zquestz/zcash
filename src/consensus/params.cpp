@@ -231,7 +231,7 @@ namespace Consensus {
     std::vector<ConsensusFeature> WhatDependsOn(ConsensusFeature f) {
         std::vector<ConsensusFeature> reverseDeps;
 
-        for (int feat = (int) ConsensusFeature::ZIP222_TZE; feat <= ConsensusFeature::MAX_FEATURES; feat++) {
+        for (int feat = (int) FIRST_CONSENSUS_FEATURE; feat <= ConsensusFeature::MAX_FEATURES; feat++) {
             for(ConsensusFeature dep : FeatureDeps[feat].dependencies) {
                 if (dep == f) {
                     reverseDeps.push_back((ConsensusFeature) feat);
