@@ -19,7 +19,7 @@ namespace Consensus {
         auto requires = WhatDependsOn(feature);
         if (vRequiredFeatures.count(feature) > 0 ||
             Any(requires, [&](Consensus::ConsensusFeature feat) { return FeatureActive(nHeight, feat); })) {
-            // Either the feature is active, or it is a dependency of an active feature.
+            // Either the feature is required, or it is a dependency of an active feature.
             return true;
         } else {
             switch (feature) {
@@ -232,7 +232,7 @@ namespace Consensus {
         std::vector<ConsensusFeature> reverseDeps;
 
         for (int feat = (int) ConsensusFeature::ZIP222_TZE; feat <= ConsensusFeature::MAX_FEATURES; feat++) {
-            BOOST_FOREACH(ConsensusFeature dep, FeatureDeps[feat].dependencies) {
+            for(ConsensusFeature dep : FeatureDeps[feat].dependencies) {
                 if (dep == f) {
                     reverseDeps.push_back((ConsensusFeature) feat);
 
