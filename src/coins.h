@@ -121,13 +121,13 @@ public:
     //! equality test
     friend bool operator==(const CCoins &a, const CCoins &b) {
          // Empty CCoins objects are always equal.
-         if (a.IsPruned() && b.IsPruned())
+         if (!a.HasUnspent() && !b.HasUnspent())
              return true;
 
          return a.fCoinBase == b.fCoinBase &&
                 a.nHeight == b.nHeight &&
                 a.nVersion == b.nVersion &&
-                a.vout == b.vout;
+                a.vout == b.vout &&
                 a.vtzeout == b.vtzeout;
     }
     friend bool operator!=(const CCoins &a, const CCoins &b) {
@@ -154,21 +154,21 @@ public:
     }
 
     //! check whether the entire CCoins is spent
-    //! note that only !IsPruned() CCoins can be serialized
-    bool IsPruned() const {
+    //! note that only HasUnspent() CCoins can be serialized
+    bool HasUnspent() const {
         for (const CTxOut& txout : vout) {
             if (!txout.IsNull()) {
-                return false;
+                return true;
             }
         }
 
         for (const TzeOutCoin& tzeout : vtzeout) {
             if (tzeout.second == UNSPENT) {
-                return false;
+                return true;
             }
         }
 
-        return true;
+        return false;
     }
 
     size_t DynamicMemoryUsage() const {

@@ -2217,7 +2217,11 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
             // mark an outpoint spent, and construct undo information
             txundo.vprevout.push_back(CTxInUndo(coins->vout[nPos]));
             coins->Spend(nPos);
-            if (coins->vout.size() == 0) {
+
+            // If this was the last unspent output, save information
+            // about the transaction along with the undo for this output
+            // so that we can restore it when unwinding.
+            if (!coins->HasUnspent()) {
                 CTxInUndo& undo = txundo.vprevout.back();
                 undo.nHeight = coins->nHeight;
                 undo.fCoinBase = coins->fCoinBase;
@@ -2225,12 +2229,24 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
             }
         }
 
+        txundo.vtzeprevout.reserve(tx.vtzein.size());
         for (const CTzeIn &tzein : tx.vtzein) {
             CCoinsModifier coins = inputs.ModifyCoins(tzein.prevout.hash);
             unsigned nPos = tzein.prevout.n;
+
+            assert(nPos < coins->vtzeout.size() && coins->vtzeout[nPos].second != SPENT);
+
+            txundo.vtzeprevout.push_back(CTzeInUndo(coins->vtzeout[nPos].first, coins->nHeight, coins->nVersion));
             coins->SpendTzeOut(nPos);
 
-            // TZE: Do we need a repr of undo information?
+            // If this was the last unspent output, save information
+            // about the transaction along with the undo for this output
+            // so that we can restore it when unwinding.
+            if (!coins->HasUnspent()) {
+                CTzeInUndo& undo = txundo.vtzeprevout.back();
+                undo.nHeight = coins->nHeight;
+                undo.nVersion = coins->nVersion;
+            }
         }
     }
 
@@ -2443,12 +2459,10 @@ bool ContextualCheckInputs(
 
                         // call through to the rust API's verify function
                         if (!tze.check(consensusBranchId, predicate, witness, ctx)) {
-                            // FIXME: Need proper levels
-                            return state.DoS(10, false, REJECT_INVALID, "tze check failed");
+                            return state.DoS(10, false, REJECT_INVALID, "tze-witness-verify-failed");
                         }
                     } else {
-                        // FIXME: Placeholder, what should the actual rejection be?
-                        return state.DoS(100, false, REJECT_INVALID, "tze id or mode mismatch");
+                        return state.DoS(100, false, REJECT_INVALID, "tze-witness-mismatch");
                     }
                 }
             }
@@ -2530,21 +2544,56 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, const CO
     CCoinsModifier coins = view.ModifyCoins(out.hash);
     if (undo.nHeight != 0) {
         // undo data contains height: this is the last output of the prevout tx being spent
-        if (!coins->IsPruned())
+        if (coins->HasUnspent())
             fClean = fClean && error("%s: undo data overwriting existing transaction", __func__);
         coins->Clear();
         coins->fCoinBase = undo.fCoinBase;
         coins->nHeight = undo.nHeight;
         coins->nVersion = undo.nVersion;
     } else {
-        if (coins->IsPruned())
+        if (!coins->HasUnspent())
             fClean = fClean && error("%s: undo data adding output to missing transaction", __func__);
     }
+
     if (coins->IsAvailable(out.n))
         fClean = fClean && error("%s: undo data overwriting existing output", __func__);
     if (coins->vout.size() < out.n+1)
         coins->vout.resize(out.n+1);
     coins->vout[out.n] = undo.txout;
+
+    return fClean;
+}
+
+/**
+ * Apply the undo operation of a CTzeInUndo to the given chain state.
+ * @param undo The undo object.
+ * @param view The coins view to which to apply the changes.
+ * @param out The out point that corresponds to the tx input.
+ * @return True on success.
+ */
+static bool ApplyTzeInUndo(const CTzeInUndo& undo, CCoinsViewCache& view, const COutPoint& out)
+{
+    bool fClean = true;
+
+    CCoinsModifier coins = view.ModifyCoins(out.hash);
+    if (undo.nHeight != 0) {
+        // undo data contains height: this is the last output of the prevout tx being spent
+        if (coins->HasUnspent())
+            fClean = fClean && error("%s: undo data overwriting existing transaction", __func__);
+        coins->Clear();
+        coins->fCoinBase = false; //No TZEs in coinbase transactions
+        coins->nHeight = undo.nHeight;
+        coins->nVersion = undo.nVersion;
+    } else {
+        if (!coins->HasUnspent())
+            fClean = fClean && error("%s: undo data adding output to missing transaction", __func__);
+    }
+
+    if (coins->IsTzeAvailable(out.n))
+        fClean = fClean && error("%s: undo data overwriting existing output", __func__);
+    if (coins->vtzeout.size() < out.n+1)
+        coins->vtzeout.resize(out.n+1);
+    coins->vtzeout[out.n] = std::make_pair(undo.tzeout, UNSPENT);
 
     return fClean;
 }
@@ -2930,7 +2979,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     // unless those are already completely spent.
     BOOST_FOREACH(const CTransaction& tx, block.vtx) {
         const CCoins* coins = view.AccessCoins(tx.GetHash());
-        if (coins && !coins->IsPruned())
+        if (coins && coins->HasUnspent())
             return state.DoS(100, error("ConnectBlock(): tried to overwrite transaction"),
                              REJECT_INVALID, "bad-txns-BIP30");
     }

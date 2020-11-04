@@ -6,7 +6,7 @@
 #ifndef BITCOIN_UNDO_H
 #define BITCOIN_UNDO_H
 
-#include "compressor.h" 
+#include "compressor.h"
 #include "primitives/transaction.h"
 #include "serialize.h"
 
@@ -29,6 +29,8 @@ public:
 
     template<typename Stream>
     void Serialize(Stream &s) const {
+        // encode the fCoinBase flag along with the block height by bit-shifting
+        // the nHeight value and then adding the flag.
         ::Serialize(s, VARINT(nHeight*2+(fCoinBase ? 1 : 0)));
         if (nHeight > 0)
             ::Serialize(s, VARINT(this->nVersion));
@@ -47,20 +49,94 @@ public:
     }
 };
 
-/** Undo information for a CTransaction */
-class CTxUndo
+/** Undo information for a CTzeIn
+ *
+ *  Contains the prevout's CTzeOut being spent, and if this was the
+ *  last output of the affected transaction, its metadata as well
+ *  (coinbase or not, height, transaction version)
+ */
+class CTzeInUndo
 {
+public:
+    CTzeOut tzeout;       // the tzeout data before being spent
+
+    // The following fields are only in the case that the associated output is the last
+    // unspent output (transparent or TZE) of a transaction. Since blocks are unwound
+    // from tip to base, at the time that such an undo is applied this information can
+    // be used to reconstruct a CCoins value that caches unspent outputs for the transaction.
+    unsigned int nHeight; // if the outpoint was the last unspent: its height
+    int nVersion;         // if the outpoint was the last unspent: its version
+
+    CTzeInUndo() : tzeout(), nHeight(0), nVersion(0) {}
+    CTzeInUndo(const CTzeOut &tzeoutIn, unsigned int nHeightIn, int nVersionIn):
+        tzeout(tzeoutIn), nHeight(nHeightIn), nVersion(nVersionIn) { }
+
+    template<typename Stream>
+    void Serialize(Stream &s) const {
+        ::Serialize(s, VARINT(nHeight));
+        ::Serialize(s, VARINT(nVersion));
+        ::Serialize(s, CTzeOutCompressor(REF(tzeout)));
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream &s) {
+        unsigned int nCode = 0;
+        ::Unserialize(s, VARINT(nHeight));
+        ::Unserialize(s, VARINT(nVersion));
+        ::Unserialize(s, REF(CTzeOutCompressor(REF(tzeout))));
+    }
+};
+
+/** Undo information for a CTransaction */
+class CTxUndo {
 public:
     // undo information for all txins
     std::vector<CTxInUndo> vprevout;
+    std::vector<CTzeInUndo> vtzeprevout;
 
-    ADD_SERIALIZE_METHODS;
+    template<typename Stream>
+    void Serialize(Stream &s) const;
 
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(vprevout);
+    template<typename Stream>
+    void Unserialize(Stream &s);
+};
+
+template<typename Stream>
+class CTxUndoReadVisitor {
+private:
+    Stream& s;
+    CTxUndo& undo;
+public:
+    CTxUndoReadVisitor(Stream& sIn, CTxUndo& undoIn): s(sIn), undo(undoIn) {}
+
+    void operator()(uint64_t& nSize) const {
+        ::UnserializeSized(s, nSize, undo.vprevout);
+    }
+
+    void operator()(CompactSizeFlags& flags) const {
+        if (flags.GetFlags() == 0x00) {
+            ::Unserialize(s, undo.vprevout);
+            ::Unserialize(s, undo.vtzeprevout);
+        } else{
+            throw std::ios_base::failure("Unrecognized compact-size encoded flags.");
+        }
     }
 };
+
+template<typename Stream>
+void CTxUndo::Serialize(Stream &s) const {
+    CompactSizeFlags csf(0x00);
+    WriteCompactSizeFlags(s, csf);
+    ::Serialize(s, vprevout);
+    ::Serialize(s, vtzeprevout);
+}
+
+template<typename Stream>
+void CTxUndo::Unserialize(Stream &s) {
+    auto sizeOrFlags = ReadCompactSizeOrFlags(s);
+    auto visitor = CTxUndoReadVisitor(s, *this);
+    std::visit(visitor, sizeOrFlags);
+}
 
 /** Undo information for a CBlock */
 class CBlockUndo

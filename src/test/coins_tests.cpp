@@ -114,7 +114,7 @@ public:
             return false;
         }
         coins = it->second;
-        if (coins.IsPruned() && insecure_rand() % 2 == 0) {
+        if (!coins.HasUnspent() && insecure_rand() % 2 == 0) {
             // Randomly return false in case of an empty entry.
             return false;
         }
@@ -177,7 +177,7 @@ public:
             if (it->second.flags & CCoinsCacheEntry::DIRTY) {
                 // Same optimization used in CCoinsViewDB is to only write dirty entries.
                 map_[it->first] = it->second.coins;
-                if (it->second.coins.IsPruned() && insecure_rand() % 3 == 0) {
+                if (!it->second.coins.HasUnspent() && insecure_rand() % 3 == 0) {
                     // Randomly delete empty entries on write.
                     map_.erase(it->first);
                 }
@@ -240,7 +240,7 @@ public:
         JSDescription jsd;
         jsd.nullifiers[0] = sproutNullifier;
         mutableTx.vJoinSplit.emplace_back(jsd);
-        
+
         saplingNullifier = GetRandHash();
         SpendDescription sd;
         sd.nullifier = saplingNullifier;
@@ -582,7 +582,7 @@ template<typename Tree> void anchorsFlushImpl(ShieldedType type)
         cache.PushAnchor(tree);
         cache.Flush();
     }
-    
+
     {
         CCoinsViewCacheTest cache(&base);
         Tree tree;
@@ -740,7 +740,7 @@ template<typename Tree> void anchorsTestImpl(ShieldedType type)
         {
             Tree test_tree2;
             GetAnchorAt(cache, newrt, test_tree2);
-            
+
             BOOST_CHECK(test_tree2.root() == newrt);
         }
 
@@ -809,8 +809,8 @@ BOOST_AUTO_TEST_CASE(coins_cache_simulation_test)
             CCoins& coins = result[txid];
             CCoinsModifier entry = stack.back()->ModifyCoins(txid);
             BOOST_CHECK(coins == *entry);
-            if (insecure_rand() % 5 == 0 || coins.IsPruned()) {
-                if (coins.IsPruned()) {
+            if (insecure_rand() % 5 == 0 || !coins.HasUnspent()) {
+                if (!coins.HasUnspent()) {
                     added_an_entry = true;
                 } else {
                     updated_an_entry = true;
@@ -834,7 +834,7 @@ BOOST_AUTO_TEST_CASE(coins_cache_simulation_test)
                     BOOST_CHECK(*coins == it->second);
                     found_an_entry = true;
                 } else {
-                    BOOST_CHECK(it->second.IsPruned());
+                    BOOST_CHECK(!it->second.HasUnspent());
                     missed_an_entry = true;
                 }
             }
@@ -995,7 +995,7 @@ BOOST_AUTO_TEST_CASE(updatecoins_simulation_test)
                 if (coins) {
                     BOOST_CHECK(*coins == it->second);
                  } else {
-                    BOOST_CHECK(it->second.IsPruned());
+                    BOOST_CHECK(!it->second.HasUnspent());
                  }
             }
         }

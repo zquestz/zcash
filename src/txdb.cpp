@@ -51,7 +51,7 @@ static const char DB_BLOCKHASHINDEX = 'h';
 CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / dbName, nCacheSize, fMemory, fWipe) {
 }
 
-CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe) 
+CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe)
 {
 }
 
@@ -114,7 +114,7 @@ uint256 CCoinsViewDB::GetBestBlock() const {
 
 uint256 CCoinsViewDB::GetBestAnchor(ShieldedType type) const {
     uint256 hashBestAnchor;
-    
+
     switch (type) {
         case SPROUT:
             if (!db.Read(DB_BEST_SPROUT_ANCHOR, hashBestAnchor))
@@ -241,10 +241,10 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins,
     size_t changed = 0;
     for (CCoinsMap::iterator it = mapCoins.begin(); it != mapCoins.end();) {
         if (it->second.flags & CCoinsCacheEntry::DIRTY) {
-            if (it->second.coins.IsPruned()) {
-                batch.Erase(make_pair(DB_COINS, it->first));
-            } else {
+            if (it->second.coins.HasUnspent()) {
                 batch.Write(make_pair(DB_COINS, it->first), CCoinsSer(it->second.coins));
+            } else {
+                batch.Erase(make_pair(DB_COINS, it->first));
             }
             changed++;
         }
@@ -337,8 +337,8 @@ bool CCoinsViewDB::GetStats(CCoinsStats &stats) const {
                 } else {
                     return error("CCoinsViewDB::GetStats() : unable to read value");
                 }
-            }         
-        } 
+            }
+        }
         pcursor->Next();
     }
     {
