@@ -11,6 +11,8 @@
 
 #include <assert.h>
 
+#include <tracing.h>
+
 /**
  * If the vout at the specified position is non-null, set
  * it to null then remove null entries from the list of vouts.
@@ -917,7 +919,7 @@ CAmount CCoinsViewCache::GetValueIn(const CTransaction& tx) const
     return nResult;
 }
 
-bool CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
+std::optional<UnsatisfiedShieldedReq> CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
 {
     boost::unordered_map<uint256, SproutMerkleTree, CCoinsKeyHasher> intermediates;
 
@@ -928,7 +930,12 @@ bool CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
             if (GetNullifier(nullifier, SPROUT)) {
                 // If the nullifier is set, this transaction
                 // double-spends!
-                return false;
+                auto txid = tx.GetHash().ToString();
+                auto nf = nullifier.ToString();
+                TracingWarn("consensus", "Sprout double-spend detected",
+                    "txid", txid.c_str(),
+                    "nf", nf.c_str());
+                return UnsatisfiedShieldedReq::SproutDuplicateNullifier;
             }
         }
 
@@ -937,7 +944,12 @@ bool CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
         if (it != intermediates.end()) {
             tree = it->second;
         } else if (!GetSproutAnchorAt(joinsplit.anchor, tree)) {
-            return false;
+            auto txid = tx.GetHash().ToString();
+            auto anchor = joinsplit.anchor.ToString();
+            TracingWarn("consensus", "Transaction uses unknown Sprout anchor",
+                "txid", txid.c_str(),
+                "anchor", anchor.c_str());
+            return UnsatisfiedShieldedReq::SproutUnknownAnchor;
         }
 
         BOOST_FOREACH(const uint256& commitment, joinsplit.commitments)
@@ -949,16 +961,27 @@ bool CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
     }
 
     for (const SpendDescription &spendDescription : tx.vShieldedSpend) {
-        if (GetNullifier(spendDescription.nullifier, SAPLING)) // Prevent double spends
-            return false;
+        if (GetNullifier(spendDescription.nullifier, SAPLING)) { // Prevent double spends
+            auto txid = tx.GetHash().ToString();
+            auto nf = spendDescription.nullifier.ToString();
+            TracingWarn("consensus", "Sapling double-spend detected",
+                "txid", txid.c_str(),
+                "nf", nf.c_str());
+            return UnsatisfiedShieldedReq::SaplingDuplicateNullifier;
+        }
 
         SaplingMerkleTree tree;
         if (!GetSaplingAnchorAt(spendDescription.anchor, tree)) {
-            return false;
+            auto txid = tx.GetHash().ToString();
+            auto anchor = spendDescription.anchor.ToString();
+            TracingWarn("consensus", "Transaction uses unknown Sapling anchor",
+                "txid", txid.c_str(),
+                "anchor", anchor.c_str());
+            return UnsatisfiedShieldedReq::SaplingUnknownAnchor;
         }
     }
 
-    return true;
+    return std::nullopt;
 }
 
 bool CCoinsViewCache::HaveInputs(const CTransaction& tx) const

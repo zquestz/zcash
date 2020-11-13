@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+export LC_ALL=C
 set -eu -o pipefail
 set +x
 
@@ -67,7 +68,6 @@ set -x
 
 eval "$MAKE" --version
 as --version
-ld -v
 
 HOST="$HOST" BUILD="$BUILD" "$MAKE" "$@" -C ./depends/
 
