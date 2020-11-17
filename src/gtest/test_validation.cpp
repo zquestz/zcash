@@ -384,7 +384,8 @@ TEST(Validation, ContextualCheckInputsPassesWithTZE) {
 
         std::vector<uint8_t> witnessBytes0(32, 0x01);
         CTzeData witness0(0, 0, witnessBytes0);
-        builder2.AddTzeInput(utzeo0, witness0, tzeValue0);
+        auto builder2Tze = TEST_FRIEND_TransactionBuilder(builder2);
+        builder2Tze.AddTzeInput(utzeo0, witness0, tzeValue0);
 
         CAmount tzeValue1(30000);
         std::vector<uint8_t> predBytes1 {

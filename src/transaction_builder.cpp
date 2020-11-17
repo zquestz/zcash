@@ -220,13 +220,6 @@ void TransactionBuilder::AddTransparentOutput(const CTxDestination& to, CAmount 
     mtx.vout.push_back(out);
 }
 
-void TransactionBuilder::AddTzeInput(CTzeOutPoint utxo, CTzeData witness, CAmount value)
-{
-    CTzeIn in(utxo, witness);
-    mtx.vtzein.push_back(in);
-    tzeIns.emplace_back(in, value);
-}
-
 void TransactionBuilder::AddTzeOutput(CAmount value, CTzeData precondition)
 {
     CTzeOut out(value, precondition);

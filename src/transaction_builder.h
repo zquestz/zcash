@@ -103,6 +103,8 @@ private:
     boost::optional<libzcash::SproutPaymentAddress> sproutChangeAddr;
     boost::optional<CTxDestination> tChangeAddr;
 
+    friend class TEST_FRIEND_TransactionBuilder; //for unit testing of TZEs
+
 public:
     TransactionBuilder() {}
     TransactionBuilder(
@@ -147,8 +149,6 @@ public:
 
     void AddTransparentOutput(const CTxDestination& to, CAmount value);
 
-    void AddTzeInput(CTzeOutPoint utxo, CTzeData witness, CAmount value);
-
     void AddTzeOutput(CAmount value, CTzeData predicate);
 
     void SendChangeTo(libzcash::SaplingPaymentAddress changeAddr, uint256 ovk);
@@ -169,6 +169,20 @@ private:
         std::array<libzcash::JSOutput, ZC_NUM_JS_OUTPUTS> vjsout,
         std::array<size_t, ZC_NUM_JS_INPUTS>& inputMap,
         std::array<size_t, ZC_NUM_JS_OUTPUTS>& outputMap);
+};
+
+class TEST_FRIEND_TransactionBuilder {
+private:
+    TransactionBuilder& delegate;
+
+public:
+    TEST_FRIEND_TransactionBuilder(TransactionBuilder& ptr): delegate(ptr) {}
+
+    void AddTzeInput(CTzeOutPoint utxo, CTzeData witness, CAmount value) {
+        CTzeIn in(utxo, witness);
+        delegate.mtx.vtzein.push_back(in);
+        delegate.tzeIns.emplace_back(in, value);
+    }
 };
 
 #endif // ZCASH_TRANSACTION_BUILDER_H
