@@ -10,6 +10,11 @@
 #include "primitives/transaction.h"
 #include "serialize.h"
 
+enum CTxUndoVersion {
+    UNDO_VERSION_ZERO = 0,
+    UNDO_VERSION_ONE = 1
+};
+
 /** Undo information for a CTxIn
  *
  *  Contains the prevout's CTxOut being spent, and if this was the
@@ -89,8 +94,15 @@ public:
 
 /** Undo information for a CTransaction */
 class CTxUndo {
+private:
+    CTxUndoVersion version;
 public:
+    template<typename Stream>
+    friend class CTxUndoReadVisitor;
+
     // undo information for all txins
+    CTxUndo(): version(UNDO_VERSION_ONE) { }
+
     std::vector<CTxInUndo> vprevout;
     std::vector<CTzeInUndo> vtzeprevout;
 
@@ -110,10 +122,12 @@ public:
     CTxUndoReadVisitor(Stream& sIn, CTxUndo& undoIn): s(sIn), undo(undoIn) {}
 
     void operator()(uint64_t& nSize) const {
+        undo.version = UNDO_VERSION_ZERO;
         ::UnserializeSized(s, nSize, undo.vprevout);
     }
 
     void operator()(CompactSizeFlags& flags) const {
+        undo.version = UNDO_VERSION_ONE;
         if (flags.GetFlags() == 0x00) {
             ::Unserialize(s, undo.vprevout);
             ::Unserialize(s, undo.vtzeprevout);
@@ -125,10 +139,14 @@ public:
 
 template<typename Stream>
 void CTxUndo::Serialize(Stream &s) const {
-    CompactSizeFlags csf(0x00);
-    WriteCompactSizeFlags(s, csf);
-    ::Serialize(s, vprevout);
-    ::Serialize(s, vtzeprevout);
+    if (version == UNDO_VERSION_ZERO) {
+        ::Serialize(s, vprevout);
+    } else {
+        CompactSizeFlags csf(0x00);
+        WriteCompactSizeFlags(s, csf);
+        ::Serialize(s, vprevout);
+        ::Serialize(s, vtzeprevout);
+    }
 }
 
 template<typename Stream>
