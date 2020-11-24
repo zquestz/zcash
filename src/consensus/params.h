@@ -11,7 +11,9 @@
 #include "key_constants.h"
 #include <zcash/address/sapling.hpp>
 
+#include <boost/foreach.hpp>
 #include <boost/optional.hpp>
+#include <set>
 
 namespace Consensus {
 
@@ -35,6 +37,7 @@ enum UpgradeIndex : uint32_t {
     UPGRADE_BLOSSOM,
     UPGRADE_HEARTWOOD,
     UPGRADE_CANOPY,
+    UPGRADE_ZFUTURE,
     // NOTE: Also add new upgrades to NetworkUpgradeInfo in upgrades.cpp
     MAX_NETWORK_UPGRADES
 };
@@ -138,6 +141,36 @@ public:
     FundingStreamAddress RecipientAddress(const Params& params, int nHeight) const;
 };
 
+enum ConsensusFeature : uint32_t {
+    ZIP222_TZE,
+    // Index value for the maximum consensus feature ID.
+    MAX_FEATURES
+};
+const auto FIRST_CONSENSUS_FEATURE = ZIP222_TZE;
+
+struct FeatureInfo {
+    std::vector<ConsensusFeature> dependencies;
+};
+
+/**
+ * FeatureDeps encodes a directed acyclic graph of feature dependencies
+ * as an array indexed by feature ID. Values are FeatureInfo objects
+ * containing the list of feature IDs upon which the index's feature ID
+ * depends.
+ *
+ * When we go to use this, what we usually need is to invert this index,
+ * to make it possible to determine whether an feature is enabled due
+ * to a transitive relationship with a manually-enabled feature.
+ */
+const struct FeatureInfo FeatureDeps[ConsensusFeature::MAX_FEATURES] = {
+    {
+        /* ZIP222_TZE */
+        /* dependencies = */ {}
+    }
+};
+
+std::vector<ConsensusFeature> WhatDependsOn(ConsensusFeature f);
+
 /** ZIP208 block target interval in seconds. */
 static const unsigned int PRE_BLOSSOM_POW_TARGET_SPACING = 150;
 static const unsigned int POST_BLOSSOM_POW_TARGET_SPACING = 75;
@@ -165,6 +198,8 @@ struct Params {
     bool NetworkUpgradeActive(int nHeight, Consensus::UpgradeIndex idx) const;
 
     bool FutureTimestampSoftForkActive(int nHeight) const;
+
+    bool FeatureActive(int nHeight, Consensus::ConsensusFeature feature) const;
 
     uint256 hashGenesisBlock;
 
@@ -216,6 +251,13 @@ struct Params {
         int startHeight,
         int endHeight,
         const std::vector<std::string>& addresses);
+
+    /**
+     * A set of features that have been explicitly force-enabled
+     * via the CLI, overriding block-height based decisions for
+     * this feature.
+     */
+    std::set<ConsensusFeature> vRequiredFeatures;
 
     /**
      * Default block height at which the future timestamp soft fork rule activates.

@@ -115,6 +115,20 @@ public:
     size_t DynamicMemoryUsage() const { return 0; }
 };
 
+/** An inpoint - a combination of a transaction and an index n into its vin */
+class CTzeInPoint
+{
+public:
+    const CTransaction* ptx;
+    uint32_t n;
+
+    CTzeInPoint() { SetNull(); }
+    CTzeInPoint(const CTransaction* ptxIn, uint32_t nTzeIn) { ptx = ptxIn; n = nTzeIn; }
+    void SetNull() { ptx = NULL; n = (uint32_t) -1; }
+    bool IsNull() const { return (ptx == NULL && n == (uint32_t) -1); }
+    size_t DynamicMemoryUsage() const { return 0; }
+};
+
 /**
  * CTxMemPool stores valid-according-to-the-current-best-chain
  * transactions that may be included in the next block.
@@ -145,7 +159,7 @@ private:
     WeightedTxTree* weightedTxTree = new WeightedTxTree(DEFAULT_MEMPOOL_TOTAL_COST_LIMIT);
 
     void checkNullifiers(ShieldedType type) const;
-    
+
 public:
     typedef boost::multi_index_container<
         CTxMemPoolEntry,
@@ -169,11 +183,11 @@ private:
     std::map<uint256, std::vector<CMempoolAddressDeltaKey> > mapAddressInserted;
     std::map<CSpentIndexKey, CSpentIndexValue, CSpentIndexKeyCompare> mapSpent;
     std::map<uint256, std::vector<CSpentIndexKey>> mapSpentInserted;
-
-public:
     std::map<COutPoint, CInPoint> mapNextTx;
+    std::map<CTzeOutPoint, CTzeInPoint> mapNextTzeTx;
     std::map<uint256, std::pair<double, CAmount> > mapDeltas;
 
+public:
     CTxMemPool(const CFeeRate& _minRelayFee);
     ~CTxMemPool();
 
@@ -223,6 +237,8 @@ public:
     void ApplyDeltas(const uint256 hash, double &dPriorityDelta, CAmount &nFeeDelta);
     void ClearPrioritisation(const uint256 hash);
 
+    bool spendingTxExists(const COutPoint& outpoint) const;
+    bool spendingTzeTxExists(const CTzeOutPoint& outpoint) const;
     bool nullifierExists(const uint256& nullifier, ShieldedType type) const;
 
     std::pair<std::vector<CTransaction>, uint64_t> DrainRecentlyAdded();
@@ -254,7 +270,7 @@ public:
 
     /** Estimate priority needed to get into the next nBlocks */
     double estimatePriority(int nBlocks) const;
-    
+
     /** Write/Read estimates to disk */
     bool WriteFeeEstimates(CAutoFile& fileout) const;
     bool ReadFeeEstimates(CAutoFile& filein);
@@ -273,7 +289,7 @@ public:
     void EnsureSizeLimit();
 };
 
-/** 
+/**
  * CCoinsView that brings transactions from a memorypool into view.
  * It does not check for spendings by memory pool transactions.
  */
