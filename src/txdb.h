@@ -283,7 +283,7 @@ public:
 
     template<typename Stream>
     void Serialize(Stream &s) const {
-        auto txoutSpent = [](const CTxOut& elem) { return !elem.IsNull(); };
+        auto txoutSpent = [](const CTxOut& elem) { return elem.IsNull(); };
 
         unsigned int nMaskSize = 0, nMaskCode = 0;
         CalcMaskSize(coins.vout, txoutSpent, nMaskSize, nMaskCode);
