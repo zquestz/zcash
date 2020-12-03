@@ -8,6 +8,7 @@
 #include "chainparams.h"
 #include "checkpoints.h"
 #include "consensus/validation.h"
+#include "core_io.h"
 #include "experimental_features.h"
 #include "key_io.h"
 #include "main.h"
@@ -238,7 +239,7 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
         if(txDetails)
         {
             UniValue objTx(UniValue::VOBJ);
-            TxToJSON(tx, uint256(), objTx);
+            TxToUniv(tx, uint256(), objTx);
             txs.push_back(objTx);
         }
         else
@@ -884,7 +885,7 @@ UniValue gettxout(const UniValue& params, bool fHelp)
         ret.pushKV("confirmations", pindex->nHeight - coins.nHeight + 1);
     ret.pushKV("value", ValueFromAmount(coins.vout[n].nValue));
     UniValue o(UniValue::VOBJ);
-    ScriptPubKeyToJSON(coins.vout[n].scriptPubKey, o, true);
+    ScriptPubKeyToUniv(coins.vout[n].scriptPubKey, o, true);
     ret.pushKV("scriptPubKey", o);
     ret.pushKV("version", coins.nVersion);
     ret.pushKV("coinbase", coins.fCoinBase);

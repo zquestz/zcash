@@ -33,220 +33,13 @@
 
 using namespace std;
 
-void ScriptPubKeyToJSON(const CScript& scriptPubKey, UniValue& out, bool fIncludeHex)
-{
-    txnouttype type;
-    vector<CTxDestination> addresses;
-    int nRequired;
-
-    out.pushKV("asm", ScriptToAsmStr(scriptPubKey));
-    if (fIncludeHex)
-        out.pushKV("hex", HexStr(scriptPubKey.begin(), scriptPubKey.end()));
-
-    if (!ExtractDestinations(scriptPubKey, type, addresses, nRequired)) {
-        out.pushKV("type", GetTxnOutputType(type));
-        return;
-    }
-
-    out.pushKV("reqSigs", nRequired);
-    out.pushKV("type", GetTxnOutputType(type));
-
-    KeyIO keyIO(Params());
-    UniValue a(UniValue::VARR);
-    for (const CTxDestination& addr : addresses) {
-        a.push_back(keyIO.EncodeDestination(addr));
-    }
-    out.pushKV("addresses", a);
-}
-
-
-UniValue TxJoinSplitToJSON(const CTransaction& tx) {
-    bool useGroth = tx.fOverwintered && tx.nVersion >= SAPLING_TX_VERSION;
-    UniValue vJoinSplit(UniValue::VARR);
-    for (unsigned int i = 0; i < tx.vJoinSplit.size(); i++) {
-        const JSDescription& jsdescription = tx.vJoinSplit[i];
-        UniValue joinsplit(UniValue::VOBJ);
-
-        joinsplit.pushKV("vpub_old", ValueFromAmount(jsdescription.vpub_old));
-        joinsplit.pushKV("vpub_oldZat", jsdescription.vpub_old);
-        joinsplit.pushKV("vpub_new", ValueFromAmount(jsdescription.vpub_new));
-        joinsplit.pushKV("vpub_newZat", jsdescription.vpub_new);
-
-        joinsplit.pushKV("anchor", jsdescription.anchor.GetHex());
-
-        {
-            UniValue nullifiers(UniValue::VARR);
-            BOOST_FOREACH(const uint256 nf, jsdescription.nullifiers) {
-                nullifiers.push_back(nf.GetHex());
-            }
-            joinsplit.pushKV("nullifiers", nullifiers);
-        }
-
-        {
-            UniValue commitments(UniValue::VARR);
-            BOOST_FOREACH(const uint256 commitment, jsdescription.commitments) {
-                commitments.push_back(commitment.GetHex());
-            }
-            joinsplit.pushKV("commitments", commitments);
-        }
-
-        joinsplit.pushKV("onetimePubKey", jsdescription.ephemeralKey.GetHex());
-        joinsplit.pushKV("randomSeed", jsdescription.randomSeed.GetHex());
-
-        {
-            UniValue macs(UniValue::VARR);
-            BOOST_FOREACH(const uint256 mac, jsdescription.macs) {
-                macs.push_back(mac.GetHex());
-            }
-            joinsplit.pushKV("macs", macs);
-        }
-
-        CDataStream ssProof(SER_NETWORK, PROTOCOL_VERSION);
-        auto ps = SproutProofSerializer<CDataStream>(ssProof, useGroth);
-        boost::apply_visitor(ps, jsdescription.proof);
-        joinsplit.pushKV("proof", HexStr(ssProof.begin(), ssProof.end()));
-
-        {
-            UniValue ciphertexts(UniValue::VARR);
-            for (const ZCNoteEncryption::Ciphertext ct : jsdescription.ciphertexts) {
-                ciphertexts.push_back(HexStr(ct.begin(), ct.end()));
-            }
-            joinsplit.pushKV("ciphertexts", ciphertexts);
-        }
-
-        vJoinSplit.push_back(joinsplit);
-    }
-    return vJoinSplit;
-}
-
-UniValue TxShieldedSpendsToJSON(const CTransaction& tx) {
-    UniValue vdesc(UniValue::VARR);
-    for (const SpendDescription& spendDesc : tx.vShieldedSpend) {
-        UniValue obj(UniValue::VOBJ);
-        obj.pushKV("cv", spendDesc.cv.GetHex());
-        obj.pushKV("anchor", spendDesc.anchor.GetHex());
-        obj.pushKV("nullifier", spendDesc.nullifier.GetHex());
-        obj.pushKV("rk", spendDesc.rk.GetHex());
-        obj.pushKV("proof", HexStr(spendDesc.zkproof.begin(), spendDesc.zkproof.end()));
-        obj.pushKV("spendAuthSig", HexStr(spendDesc.spendAuthSig.begin(), spendDesc.spendAuthSig.end()));
-        vdesc.push_back(obj);
-    }
-    return vdesc;
-}
-
-UniValue TxShieldedOutputsToJSON(const CTransaction& tx) {
-    UniValue vdesc(UniValue::VARR);
-    for (const OutputDescription& outputDesc : tx.vShieldedOutput) {
-        UniValue obj(UniValue::VOBJ);
-        obj.pushKV("cv", outputDesc.cv.GetHex());
-        obj.pushKV("cmu", outputDesc.cmu.GetHex());
-        obj.pushKV("ephemeralKey", outputDesc.ephemeralKey.GetHex());
-        obj.pushKV("encCiphertext", HexStr(outputDesc.encCiphertext.begin(), outputDesc.encCiphertext.end()));
-        obj.pushKV("outCiphertext", HexStr(outputDesc.outCiphertext.begin(), outputDesc.outCiphertext.end()));
-        obj.pushKV("proof", HexStr(outputDesc.zkproof.begin(), outputDesc.zkproof.end()));
-        vdesc.push_back(obj);
-    }
-    return vdesc;
-}
-
 void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
 {
-    const uint256 txid = tx.GetHash();
-    entry.pushKV("txid", txid.GetHex());
-    entry.pushKV("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION));
-    entry.pushKV("overwintered", tx.fOverwintered);
-    entry.pushKV("version", tx.nVersion);
-    if (tx.fOverwintered) {
-        entry.pushKV("versiongroupid", HexInt(tx.nVersionGroupId));
-    }
-    entry.pushKV("locktime", (int64_t)tx.nLockTime);
-    if (tx.fOverwintered) {
-        entry.pushKV("expiryheight", (int64_t)tx.nExpiryHeight);
-    }
-
-    KeyIO keyIO(Params());
-    UniValue vin(UniValue::VARR);
-    BOOST_FOREACH(const CTxIn& txin, tx.vin) {
-        UniValue in(UniValue::VOBJ);
-        if (tx.IsCoinBase())
-            in.pushKV("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
-        else {
-            in.pushKV("txid", txin.prevout.hash.GetHex());
-            in.pushKV("vout", (int64_t)txin.prevout.n);
-            UniValue o(UniValue::VOBJ);
-            o.pushKV("asm", ScriptToAsmStr(txin.scriptSig, true));
-            o.pushKV("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
-            in.pushKV("scriptSig", o);
-
-            // Add address and value info if spentindex enabled
-            CSpentIndexValue spentInfo;
-            CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
-            if (fSpentIndex && GetSpentIndex(spentKey, spentInfo)) {
-                in.pushKV("value", ValueFromAmount(spentInfo.satoshis));
-                in.pushKV("valueSat", spentInfo.satoshis);
-
-                CTxDestination dest =
-                    DestFromAddressHash(spentInfo.addressType, spentInfo.addressHash);
-                if (IsValidDestination(dest)) {
-                    in.pushKV("address", keyIO.EncodeDestination(dest));
-                }
-            }
-        }
-        in.pushKV("sequence", (int64_t)txin.nSequence);
-        vin.push_back(in);
-    }
-    entry.pushKV("vin", vin);
-    UniValue vout(UniValue::VARR);
-    for (unsigned int i = 0; i < tx.vout.size(); i++) {
-        const CTxOut& txout = tx.vout[i];
-        UniValue out(UniValue::VOBJ);
-        out.pushKV("value", ValueFromAmount(txout.nValue));
-        out.pushKV("valueZat", txout.nValue);
-        out.pushKV("valueSat", txout.nValue);
-        out.pushKV("n", (int64_t)i);
-        UniValue o(UniValue::VOBJ);
-        ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
-        out.pushKV("scriptPubKey", o);
-
-        // Add spent information if spentindex is enabled
-        CSpentIndexValue spentInfo;
-        CSpentIndexKey spentKey(txid, i);
-        if (fSpentIndex && GetSpentIndex(spentKey, spentInfo)) {
-            out.pushKV("spentTxId", spentInfo.txid.GetHex());
-            out.pushKV("spentIndex", (int)spentInfo.inputIndex);
-            out.pushKV("spentHeight", spentInfo.blockHeight);
-        }
-        vout.push_back(out);
-    }
-    entry.pushKV("vout", vout);
-
-    UniValue vjoinsplit = TxJoinSplitToJSON(tx);
-    entry.pushKV("vjoinsplit", vjoinsplit);
-
-    if (tx.fOverwintered && tx.nVersion >= SAPLING_TX_VERSION) {
-        entry.pushKV("valueBalance", ValueFromAmount(tx.valueBalance));
-        entry.pushKV("valueBalanceZat", tx.valueBalance);
-        UniValue vspenddesc = TxShieldedSpendsToJSON(tx);
-        entry.pushKV("vShieldedSpend", vspenddesc);
-        UniValue voutputdesc = TxShieldedOutputsToJSON(tx);
-        entry.pushKV("vShieldedOutput", voutputdesc);
-        if (!(vspenddesc.empty() && voutputdesc.empty())) {
-            entry.pushKV("bindingSig", HexStr(tx.bindingSig.begin(), tx.bindingSig.end()));
-        }
-    }
-
-    if (tx.nVersion >= 2 && tx.vJoinSplit.size() > 0) {
-        // Copy joinSplitPubKey into a uint256 so that
-        // it is byte-flipped in the RPC output.
-        uint256 joinSplitPubKey;
-        std::copy(
-            tx.joinSplitPubKey.bytes,
-            tx.joinSplitPubKey.bytes + ED25519_VERIFICATION_KEY_LEN,
-            joinSplitPubKey.begin());
-        entry.pushKV("joinSplitPubKey", joinSplitPubKey.GetHex());
-        entry.pushKV("joinSplitSig",
-            HexStr(tx.joinSplitSig.bytes, tx.joinSplitSig.bytes + ED25519_SIGNATURE_LEN));
-    }
+    // Call into TxToUniv() to decode the transaction hex.
+    //
+    // Blockchain contextual information (confirmations and blocktime) are not
+    // available, so we query them here and push the data into the returned UniValue.
+    TxToUniv(tx, uint256(), entry);
 
     if (!hashBlock.IsNull()) {
         entry.pushKV("blockhash", hashBlock.GetHex());
@@ -746,7 +539,7 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
 
     UniValue result(UniValue::VOBJ);
-    TxToJSON(tx, uint256(), result);
+    TxToUniv(tx, uint256(), result);
 
     return result;
 }
@@ -787,7 +580,7 @@ UniValue decodescript(const UniValue& params, bool fHelp)
     } else {
         // Empty scripts are valid
     }
-    ScriptPubKeyToJSON(script, r, false);
+    ScriptPubKeyToUniv(script, r, false);
 
     KeyIO keyIO(Params());
     r.pushKV("p2sh", keyIO.EncodeDestination(CScriptID(script)));
